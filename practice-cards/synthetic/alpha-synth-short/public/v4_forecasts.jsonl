@@ -1,0 +1,3 @@
+{"record_type": "forecast", "issued_at_utc": "2026-10-05T00:00:00Z", "coverage_start_utc": "2026-10-05T00:00:00Z", "coverage_end_utc": "2026-10-07T00:15:00Z", "notices": [{"event_kind": "rain", "direction": "ALL", "nights": ["2026-10-04"]}]}
+{"record_type": "forecast", "issued_at_utc": "2026-10-07T00:15:00Z", "coverage_start_utc": "2026-10-07T00:15:00Z", "coverage_end_utc": "2026-10-09T00:15:00Z", "notices": []}
+{"record_type": "forecast", "issued_at_utc": "2026-10-09T00:15:00Z", "coverage_start_utc": "2026-10-09T00:15:00Z", "coverage_end_utc": "2026-10-09T08:45:00Z", "notices": []}

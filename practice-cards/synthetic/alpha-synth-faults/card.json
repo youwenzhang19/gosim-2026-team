@@ -1,0 +1,30 @@
+{
+  "card_id": "alpha",
+  "slug": "v4-practice-alpha",
+  "phase": "practice-projects",
+  "stress": false,
+  "wallclock": 900,
+  "site": {
+    "name": "Paranal, Chile (virtual)",
+    "latitude_deg": -24.6157,
+    "longitude_deg": -70.3976
+  },
+  "first_night": "2026-10-04",
+  "last_night": "2026-11-10",
+  "nights": 38,
+  "targets": 10000,
+  "required": 500,
+  "regions": 3,
+  "area": 2000.0,
+  "sun_limit": -18.0,
+  "min_alt": 30.0,
+  "fibers": 16,
+  "fiber_area": 0.4,
+  "exposure": [
+    60,
+    3600
+  ],
+  "f0": 0.5,
+  "t0": 900.0,
+  "checksum": "5455aaaf048d5076337ab523a45401b9b50c66c5b93176f4a6ecb0252a0569b4"
+}

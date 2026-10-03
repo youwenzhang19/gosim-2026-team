@@ -1,0 +1,6 @@
+event_id,event_type,actual_start_utc,actual_end_utc,scope_type,azimuth_start_deg,azimuth_end_deg,min_altitude_deg,max_altitude_deg,magnitude,opacity,force_close,zero_score,seeing_multiplier,transparency_multiplier,sky_quality_multiplier,instrument_efficiency_multiplier
+SYNTH_EV_T0,terrain_obstruction,2026-10-13T00:15:00Z,2026-10-24T08:30:00Z,HORIZON_SECTOR,220.000000,270.000000,0.000000,40.000000,,1.000000,false,true,1.000000,1.000000,1.000000,1.000000
+SYNTH_EV_T1,terrain_obstruction,2026-10-13T00:15:00Z,2026-10-24T08:30:00Z,HORIZON_SECTOR,100.000000,140.000000,0.000000,35.000000,,1.000000,false,true,1.000000,1.000000,1.000000,1.000000
+SYNTH_EV_R00,rainy,2026-10-13T02:15:00Z,2026-10-13T04:00:00Z,ALL,,,,,,0.900000,true,false,1.500000,0.300000,0.400000,1.000000
+SYNTH_EV_R01,rainy,2026-10-19T06:15:00Z,2026-10-19T08:00:00Z,ALL,,,,,,0.900000,true,false,1.500000,0.300000,0.400000,1.000000
+SYNTH_EV_R02,rainy,2026-10-24T02:00:00Z,2026-10-24T03:30:00Z,ALL,,,,,,0.900000,true,false,1.500000,0.300000,0.400000,1.000000

@@ -1,0 +1,32 @@
+{
+  "label": "SYNTHETIC / 非官方真值，分数无官方意义",
+  "name": "alpha-synth-short",
+  "title": "SHORT 极速 smoke",
+  "calendar_trim": "从完整 α 夜历（38 夜，N20261004–N20261110）裁剪：offset=0, nights=5 → N20261004 … N20261008",
+  "notes": [
+    "SHORT：仅 α 夜历前 5 夜",
+    "几乎全晴，专供 <1min 通路检查"
+  ],
+  "nights": 5,
+  "slots": 173,
+  "weather_closed_slots": 6,
+  "close_rate": 0.0347,
+  "events": 3,
+  "event_types": [
+    "rainy",
+    "terrain_obstruction"
+  ],
+  "bulletins": 173,
+  "forecasts": 3,
+  "forecast_mode": "honest",
+  "observation_requests": 2,
+  "earthquake_effect_rows": 0,
+  "required_targets": {
+    "original_required": 500,
+    "boosted": 0,
+    "final_required": 500
+  },
+  "wallclock_seconds_in_card": 300,
+  "survey_start": "2026-10-05T00:00:00Z",
+  "survey_end": "2026-10-09T08:45:00Z"
+}

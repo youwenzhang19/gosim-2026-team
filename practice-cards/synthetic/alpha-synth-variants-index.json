@@ -1,0 +1,205 @@
+{
+  "label": "SYNTHETIC / 非官方真值，分数无官方意义",
+  "variants": [
+    {
+      "label": "SYNTHETIC / 非官方真值，分数无官方意义",
+      "name": "alpha-synth-mild",
+      "title": "温和基线",
+      "calendar_trim": "从完整 α 夜历（38 夜，N20261004–N20261110）裁剪：offset=0, nights=12 → N20261004 … N20261015",
+      "notes": [
+        "裁剪 α 夜历前 12 夜",
+        "少量关穹",
+        "预报与真值大致一致"
+      ],
+      "nights": 12,
+      "slots": 411,
+      "weather_closed_slots": 6,
+      "close_rate": 0.0146,
+      "events": 3,
+      "event_types": [
+        "rainy",
+        "terrain_obstruction"
+      ],
+      "bulletins": 411,
+      "forecasts": 3,
+      "forecast_mode": "honest",
+      "observation_requests": 2,
+      "earthquake_effect_rows": 0,
+      "required_targets": {
+        "original_required": 500,
+        "boosted": 0,
+        "final_required": 500
+      },
+      "wallclock_seconds_in_card": 600,
+      "survey_start": "2026-10-05T00:00:00Z",
+      "survey_end": "2026-10-16T08:45:00Z"
+    },
+    {
+      "label": "SYNTHETIC / 非官方真值，分数无官方意义",
+      "name": "alpha-synth-storm",
+      "title": "长期坏天气/高关穹",
+      "calendar_trim": "从完整 α 夜历（38 夜，N20261004–N20261110）裁剪：offset=4, nights=12 → N20261008 … N20261019",
+      "notes": [
+        "裁剪 α 夜历第 5–16 夜",
+        "约一半以上 slots force_close",
+        "多段 rainy/cloudy"
+      ],
+      "nights": 12,
+      "slots": 407,
+      "weather_closed_slots": 299,
+      "close_rate": 0.7346,
+      "events": 20,
+      "event_types": [
+        "cloudy",
+        "rainy",
+        "terrain_obstruction"
+      ],
+      "bulletins": 407,
+      "forecasts": 3,
+      "forecast_mode": "honest",
+      "observation_requests": 2,
+      "earthquake_effect_rows": 0,
+      "required_targets": {
+        "original_required": 500,
+        "boosted": 0,
+        "final_required": 500
+      },
+      "wallclock_seconds_in_card": 600,
+      "survey_start": "2026-10-09T00:15:00Z",
+      "survey_end": "2026-10-20T08:30:00Z"
+    },
+    {
+      "label": "SYNTHETIC / 非官方真值，分数无官方意义",
+      "name": "alpha-synth-forecast-lie",
+      "title": "预报假阳+漏报",
+      "calendar_trim": "从完整 α 夜历（38 夜，N20261004–N20261110）裁剪：offset=8, nights=12 → N20261012 … N20261023",
+      "notes": [
+        "裁剪 α 夜历第 9–20 夜",
+        "预报大量假阳雨夜 + 对真实雨夜漏报"
+      ],
+      "nights": 12,
+      "slots": 403,
+      "weather_closed_slots": 20,
+      "close_rate": 0.0496,
+      "events": 5,
+      "event_types": [
+        "rainy",
+        "terrain_obstruction"
+      ],
+      "bulletins": 403,
+      "forecasts": 3,
+      "forecast_mode": "mixed",
+      "observation_requests": 2,
+      "earthquake_effect_rows": 0,
+      "required_targets": {
+        "original_required": 500,
+        "boosted": 0,
+        "final_required": 500
+      },
+      "wallclock_seconds_in_card": 600,
+      "survey_start": "2026-10-13T00:15:00Z",
+      "survey_end": "2026-10-24T08:30:00Z"
+    },
+    {
+      "label": "SYNTHETIC / 非官方真值，分数无官方意义",
+      "name": "alpha-synth-faults",
+      "title": "仪器故障密集",
+      "calendar_trim": "从完整 α 夜历（38 夜，N20261004–N20261110）裁剪：offset=10, nights=12 → N20261014 … N20261025",
+      "notes": [
+        "裁剪 α 夜历第 11–22 夜",
+        "多段 instrument_fault + earthquake 余震效率衰减"
+      ],
+      "nights": 12,
+      "slots": 401,
+      "weather_closed_slots": 6,
+      "close_rate": 0.015,
+      "events": 12,
+      "event_types": [
+        "earthquake",
+        "instrument_fault",
+        "rainy",
+        "terrain_obstruction"
+      ],
+      "bulletins": 401,
+      "forecasts": 3,
+      "forecast_mode": "honest",
+      "observation_requests": 2,
+      "earthquake_effect_rows": 8,
+      "required_targets": {
+        "original_required": 500,
+        "boosted": 0,
+        "final_required": 500
+      },
+      "wallclock_seconds_in_card": 600,
+      "survey_start": "2026-10-15T00:15:00Z",
+      "survey_end": "2026-10-26T08:30:00Z"
+    },
+    {
+      "label": "SYNTHETIC / 非官方真值，分数无官方意义",
+      "name": "alpha-synth-pressure",
+      "title": "强 required / 均匀性压力",
+      "calendar_trim": "从完整 α 夜历（38 夜，N20261004–N20261110）裁剪：offset=2, nights=14 → N20261006 … N20261019",
+      "notes": [
+        "裁剪 α 夜历第 3–16 夜",
+        "额外标记 ~1500 个 required",
+        "分带关穹制造 RA 覆盖不均"
+      ],
+      "nights": 14,
+      "slots": 475,
+      "weather_closed_slots": 245,
+      "close_rate": 0.5158,
+      "events": 17,
+      "event_types": [
+        "cloudy",
+        "rainy",
+        "terrain_obstruction"
+      ],
+      "bulletins": 475,
+      "forecasts": 4,
+      "forecast_mode": "honest",
+      "observation_requests": 2,
+      "earthquake_effect_rows": 0,
+      "required_targets": {
+        "original_required": 500,
+        "boosted": 1500,
+        "final_required": 2000
+      },
+      "wallclock_seconds_in_card": 600,
+      "survey_start": "2026-10-07T00:15:00Z",
+      "survey_end": "2026-10-20T08:30:00Z"
+    },
+    {
+      "label": "SYNTHETIC / 非官方真值，分数无官方意义",
+      "name": "alpha-synth-short",
+      "title": "SHORT 极速 smoke",
+      "calendar_trim": "从完整 α 夜历（38 夜，N20261004–N20261110）裁剪：offset=0, nights=5 → N20261004 … N20261008",
+      "notes": [
+        "SHORT：仅 α 夜历前 5 夜",
+        "几乎全晴，专供 <1min 通路检查"
+      ],
+      "nights": 5,
+      "slots": 173,
+      "weather_closed_slots": 6,
+      "close_rate": 0.0347,
+      "events": 3,
+      "event_types": [
+        "rainy",
+        "terrain_obstruction"
+      ],
+      "bulletins": 173,
+      "forecasts": 3,
+      "forecast_mode": "honest",
+      "observation_requests": 2,
+      "earthquake_effect_rows": 0,
+      "required_targets": {
+        "original_required": 500,
+        "boosted": 0,
+        "final_required": 500
+      },
+      "wallclock_seconds_in_card": 300,
+      "survey_start": "2026-10-05T00:00:00Z",
+      "survey_end": "2026-10-09T08:45:00Z"
+    }
+  ],
+  "generator": "/Users/zhangyouwen/我的云端硬盘/WORKSPACE_PROJECT/巡天智能体黑客松/practice-cards/generate_alpha_synth_variants.py"
+}

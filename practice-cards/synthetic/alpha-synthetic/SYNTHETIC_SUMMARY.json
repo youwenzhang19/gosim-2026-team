@@ -1,0 +1,18 @@
+{
+  "label": "SYNTHETIC / 非官方真值，分数无官方意义",
+  "nights": 38,
+  "slots": 1252,
+  "weather_closed_slots": 37,
+  "events": 6,
+  "bulletins": 1252,
+  "forecasts": 6,
+  "observation_requests": 2,
+  "earthquake_effect_nights": 10,
+  "rain_nights": [
+    "2026-10-16",
+    "2026-10-29"
+  ],
+  "earthquake_night": "2026-10-29",
+  "survey_start": "2026-10-05T00:00:00Z",
+  "survey_end": "2026-11-11T08:15:00Z"
+}

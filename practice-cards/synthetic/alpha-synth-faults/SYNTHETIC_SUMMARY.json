@@ -1,0 +1,34 @@
+{
+  "label": "SYNTHETIC / 非官方真值，分数无官方意义",
+  "name": "alpha-synth-faults",
+  "title": "仪器故障密集",
+  "calendar_trim": "从完整 α 夜历（38 夜，N20261004–N20261110）裁剪：offset=10, nights=12 → N20261014 … N20261025",
+  "notes": [
+    "裁剪 α 夜历第 11–22 夜",
+    "多段 instrument_fault + earthquake 余震效率衰减"
+  ],
+  "nights": 12,
+  "slots": 401,
+  "weather_closed_slots": 6,
+  "close_rate": 0.015,
+  "events": 12,
+  "event_types": [
+    "earthquake",
+    "instrument_fault",
+    "rainy",
+    "terrain_obstruction"
+  ],
+  "bulletins": 401,
+  "forecasts": 3,
+  "forecast_mode": "honest",
+  "observation_requests": 2,
+  "earthquake_effect_rows": 8,
+  "required_targets": {
+    "original_required": 500,
+    "boosted": 0,
+    "final_required": 500
+  },
+  "wallclock_seconds_in_card": 600,
+  "survey_start": "2026-10-15T00:15:00Z",
+  "survey_end": "2026-10-26T08:30:00Z"
+}

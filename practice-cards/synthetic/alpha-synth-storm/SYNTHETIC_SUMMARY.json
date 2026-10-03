@@ -1,0 +1,34 @@
+{
+  "label": "SYNTHETIC / 非官方真值，分数无官方意义",
+  "name": "alpha-synth-storm",
+  "title": "长期坏天气/高关穹",
+  "calendar_trim": "从完整 α 夜历（38 夜，N20261004–N20261110）裁剪：offset=4, nights=12 → N20261008 … N20261019",
+  "notes": [
+    "裁剪 α 夜历第 5–16 夜",
+    "约一半以上 slots force_close",
+    "多段 rainy/cloudy"
+  ],
+  "nights": 12,
+  "slots": 407,
+  "weather_closed_slots": 299,
+  "close_rate": 0.7346,
+  "events": 20,
+  "event_types": [
+    "cloudy",
+    "rainy",
+    "terrain_obstruction"
+  ],
+  "bulletins": 407,
+  "forecasts": 3,
+  "forecast_mode": "honest",
+  "observation_requests": 2,
+  "earthquake_effect_rows": 0,
+  "required_targets": {
+    "original_required": 500,
+    "boosted": 0,
+    "final_required": 500
+  },
+  "wallclock_seconds_in_card": 600,
+  "survey_start": "2026-10-09T00:15:00Z",
+  "survey_end": "2026-10-20T08:30:00Z"
+}

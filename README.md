@@ -1,11 +1,26 @@
-# GOSIM 2026 巡天智能体 · 团队仓库
+# GOSIM 2026 · youwenzhang19 个人 fork
 
-用于三位队友共同维护比赛需要的代码、实验记录和资料。先保持简单，目录随实际内容再增加。
+这是 [KennyMcSimpson/gosim-2026-team](https://github.com/KennyMcSimpson/gosim-2026-team) 的 **个人实验 fork**，不是团队共享主仓。
 
-最新共享记录：[2026-10-02 讲座与赛事消息摘要](TEAM_SUMMARY.md)。
+## 与团队仓分工
 
-正式开发前的 v4 边界与迁移清单：[2026-10-02 v4 迁移检查点](V4_MIGRATION_CHECKPOINT_2026-10-02.md)。
+| 内容 | 位置 |
+|------|------|
+| 官方 `gosim-observer-examples` 镜像、α 残缺包、空白对照 baseline | **团队仓**（见 PR） |
+| 合成练习卡、生成脚本、本地跑分摘要、实验脚本 | **本 fork** |
 
-这是公开仓库：只提交可以公开的内容，不要提交密码、访问令牌、模型 API key 或私人数据。第三方材料先确认来源及再分发条件。赛事规则和提交方式以[官网规则](https://create.gosim.org/survey26/platform/rules)与[公告](https://create.gosim.org/survey26/platform/announcements)为准。
+## 本分支 `personal/alpha-synth-experiments`
 
-本地公开场景练习应用在单独的[应用仓库](https://github.com/KennyMcSimpson/gosim-agentic-observer)，这里不重复存放安装包。
+- `practice-cards/synthetic/` — `alpha-synthetic`、`alpha-synth-*` 与 `generate_alpha_synth_variants.py`
+- `run-summaries/` — 本地跑分 **summary only**（非官方分）
+- `scripts/smoke_deterministic_agent.py` — 无真实 key 的确定性 smoke agent
+- `notes/experiment-notes.md` — 简短实验说明
+
+### 重要声明
+
+1. **SYNTHETIC**：合成卡，非官网发布材料。  
+2. **非官方分**：`run-summaries` 仅供本地调试对照。  
+3. **勿提交密钥**：无 `.env`、无 API key、无含 key 的日志。
+
+上游团队仓：https://github.com/KennyMcSimpson/gosim-2026-team  
+官方 examples release：https://github.com/gosimfoundation/hackathon-survey26/releases/tag/examples-2026-10-02

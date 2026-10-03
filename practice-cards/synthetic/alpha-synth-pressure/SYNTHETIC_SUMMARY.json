@@ -1,0 +1,34 @@
+{
+  "label": "SYNTHETIC / 非官方真值，分数无官方意义",
+  "name": "alpha-synth-pressure",
+  "title": "强 required / 均匀性压力",
+  "calendar_trim": "从完整 α 夜历（38 夜，N20261004–N20261110）裁剪：offset=2, nights=14 → N20261006 … N20261019",
+  "notes": [
+    "裁剪 α 夜历第 3–16 夜",
+    "额外标记 ~1500 个 required",
+    "分带关穹制造 RA 覆盖不均"
+  ],
+  "nights": 14,
+  "slots": 475,
+  "weather_closed_slots": 245,
+  "close_rate": 0.5158,
+  "events": 17,
+  "event_types": [
+    "cloudy",
+    "rainy",
+    "terrain_obstruction"
+  ],
+  "bulletins": 475,
+  "forecasts": 4,
+  "forecast_mode": "honest",
+  "observation_requests": 2,
+  "earthquake_effect_rows": 0,
+  "required_targets": {
+    "original_required": 500,
+    "boosted": 1500,
+    "final_required": 2000
+  },
+  "wallclock_seconds_in_card": 600,
+  "survey_start": "2026-10-07T00:15:00Z",
+  "survey_end": "2026-10-20T08:30:00Z"
+}
