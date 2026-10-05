@@ -147,19 +147,23 @@ def build_brief(
     if open_views:
         reward = sum(float(v.get("reward", 100.0)) for v in open_views)
         remaining_tgts = sum(int(v.get("remaining", 1)) for v in open_views)
-        req_protect_ev = reward - (remaining_tgts * 8.0)
-        if short:
-            req_protect_ev -= EV_REQUIRED_UNIT * max(0, debt - DEBT_TOLERANCE) * 0.02
+        req_protect_ev = reward - (remaining_tgts * 4.0)
+        # Mild conflict tax only — do not let large D always veto timed rewards.
+        if short and debt > DEBT_TOLERANCE:
+            req_protect_ev -= min(40.0, 8.0 * max(1, remaining_tgts // 3))
         # v4: missing a timed request usually does not penalize — forfeit reward only.
-        req_abandon_ev = EV_REQUIRED_UNIT * min(debt, 40) * 0.05 - IDLE_TAX * 5
+        req_abandon_ev = EV_REQUIRED_UNIT * min(debt, 40) * 0.02 - IDLE_TAX * 5
+        # Abandon only when window still long (> urgent) AND abandon clearly wins.
+        # Never abandon inside the default 连指 window (≤12h) or critical (≤4h).
         if (
             short
             and debt > DEBT_TOLERANCE
-            and not critical
-            and hours_left > REQUEST_CRITICAL_HOURS
-            and req_abandon_ev >= req_protect_ev - 15
+            and hours_left > 12.0
+            and req_abandon_ev > req_protect_ev + 40.0
         ):
-            abandon_ids = [str(v["id"]) for v in open_views]
+            # Drop the single greediest (largest remaining) request, not the whole set.
+            worst = max(open_views, key=lambda v: int(v.get("remaining", 1)))
+            abandon_ids = [str(worst["id"])]
             short_name = "放弃限时"
             short_ev = req_abandon_ev
         elif hours_left <= 12.0 or critical:
@@ -167,7 +171,7 @@ def build_brief(
             short_ev = req_protect_ev
         else:
             short_name = "正常排镜"
-            short_ev = mid_ev
+            short_ev = mid_ev + req_protect_ev * 0.05
     elif force_deep:
         short_name = "深清债"
         short_ev = long_ev + 8.0
