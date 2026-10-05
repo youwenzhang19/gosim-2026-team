@@ -24,3 +24,10 @@ SOTA are not claimed. Diagnostic artifacts and tests live outside the upload ZIP
 - PROTECT prefers request-completing fields; CONSERVE caps exposure and prefers
   BACKUP/BRIGHT; RECOVER reweights invalidated / required targets after resync.
 - API key is optional at startup; missing key disables advisor, not the planner.
+
+## Duty-mode threshold loosen (2026-10-05, post practice −1.1万)
+
+- Practice eval mean ≈ −11195 with CONSERVE≫PROTECT and P-REQ/P-Q always on.
+- Loosen QUALITY_* / DEBT_* / exposure caps; capacity-based debt urgency; PROTECT
+  only when request window ≤18h; good-sky CONSERVE keeps DARK uncapped.
+- Unique Planner.decide + mode framework unchanged.

@@ -181,8 +181,8 @@ class JointSearch:
         durations = {state.min_exposure, cap}
         bases = (300, 600, 900, 1500, 2400, 3600)
         if state.duty_max_exposure_cap is not None:
-            # CONSERVE / P-Q: keep short candidates; drop optimistic long DARK waits.
-            bases = tuple(d for d in (60, 120, 180, 300, 450, 600) if d <= cap)
+            # CONSERVE / P-Q: keep shorter candidates; drop optimistic 3600 DARK.
+            bases = tuple(d for d in (120, 180, 300, 450, 600, 900, 1200, 1500, 1800) if d <= cap)
         durations.update(d for d in bases if state.min_exposure <= d <= cap)
         boundaries = []
         for items in groups.values():
