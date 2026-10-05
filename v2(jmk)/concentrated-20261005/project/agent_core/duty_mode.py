@@ -34,6 +34,9 @@ PROTO_RS = "P-RS"    # resync re-observation ledger
 # Strict protocol doc remains the intent; these numbers avoid permanent CONSERVE
 # when early-season required debt is large but nights remain, and avoid capping
 # DARK science on only mildly sub-par quality.
+# 2026-10-05 deep-not-wide: vs original v2 (0658278), rain B under duty was
+# wide+shallow (observe↑, p90 exposure↓, BACKUP/BRIGHT dense). Knobs below
+# keep L0–L4 / Planner.decide; only ease drain-of-depth under debt CONSERVE.
 REQUEST_URGENT_HOURS = 12.0
 REQUEST_CRITICAL_HOURS = 4.0
 QUALITY_LOW = 0.42          # was 0.45 (post-loosen); local α-synth saw 0.42 edge thrash → P-Q
@@ -42,20 +45,21 @@ QUALITY_MONTH_LOW = 0.35    # was 0.50
 DEBT_URGENT_RATIO = 0.40    # was 0.45 — rain-season B/C: flag urgent slightly earlier
 DEBT_CRITICAL = 60          # was 10 — practice/formal open hundreds early; 10 always fired
 DEBT_SOFT_FLOOR = 8         # ignore tiny residual debt for mode switch
-# Rough REQUIRED clears per night (mildly pessimistic vs 12): rainy nights clear
-# slower → capacity urgency a bit earlier (债急提前). Not as low as 9 — that
-# plus wide sprint over-weighted hard requireds on 12-night sim-C.
-EST_REQUIRED_PER_NIGHT = 10.0
+# Rough REQUIRED clears per night. 10 was slightly too pessimistic → forever
+# CONSERVE on B-class rain; 11 nudges capacity urgency later (more NORMAL+weight).
+# Not back to 12: that under-fired urgency on short rain proxies.
+EST_REQUIRED_PER_NIGHT = 11.0
 DEBT_SCHEDULE_SLACK = 0.95  # was 0.85 — urgent near capacity limit
 # Late-season debt weight only (no exposure soft-cap).
 # Sprint wider than 5 but not 8: 12-night C spends too long at max weight.
 DEBT_SPRINT_NIGHTS = 6
 DEBT_FINAL_NIGHTS = 3
 RECOVER_WINDOW_HOURS = 48.0
-SHORT_EXPOSURE_CAP = 1800   # was 600 — still below optimistic 3600 on bad quality
-VERY_SHORT_EXPOSURE_CAP = 900  # was 300
+SHORT_EXPOSURE_CAP = 1800   # was 600 — pure P-Q nights still below optimistic 3600
+VERY_SHORT_EXPOSURE_CAP = 900  # was 300 — only truly bad sky
 # PROTECT only when the open window is actually short / critical (not all season).
 PROTECT_ALWAYS_HOURS = 18.0
+# Debt deep-not-wide: mild quality still allows long DARK; only very_bad clamps.
 
 
 @dataclass(frozen=True)
@@ -168,10 +172,12 @@ def classify(
     debt_ratio = debt / max(nights_left, 1)  # retained for logs / reason strings
     nights_needed = debt / EST_REQUIRED_PER_NIGHT
     debt_rising = bool(getattr(state, "required_debt_rising", False))
+    # Slightly tighter urgent windows than b7356ad (24/18 → 20/16): fewer
+    # "forever CONSERVE" nights; residual debt stays on NORMAL+weight (debt_watch).
     debt_urgent = debt > DEBT_SOFT_FLOOR and (
         nights_needed > nights_left * DEBT_SCHEDULE_SLACK
-        or debt_ratio > DEBT_URGENT_RATIO and nights_left <= 24
-        or (debt >= DEBT_CRITICAL and nights_left <= 18)
+        or debt_ratio > DEBT_URGENT_RATIO and nights_left <= 20
+        or (debt >= DEBT_CRITICAL and nights_left <= 16)
         or debt_rising
     )
     debt_watch = debt > DEBT_SOFT_FLOOR and not debt_urgent
@@ -260,23 +266,30 @@ def classify(
             reason="; ".join(reason_parts),
         )
 
-    if debt_urgent or (debt > DEBT_SOFT_FLOOR and month_q < QUALITY_MONTH_LOW):
+    # L2 only on real capacity urgency (or rising debt). Month-prior alone used
+    # to force CONSERVE on rainy cards even when nights-to-clear still fit —
+    # that locked B into shallow BACKUP sprints. Soft month dips fall to L3/L4.
+    if debt_urgent:
         level = LEVEL_L2
         mode = MODE_CONSERVE
         protocols.append(PROTO_REQ)
         if quality_bad:
             protocols.append(PROTO_Q)
         reason_parts.append(f"required debt D={debt} nights_left≈{nights_left}")
-        # Good-sky debt nights: keep DARK uncapped so science tax base survives;
-        # only clamp exposure when quality / month prior is actually bad.
-        # Do NOT soft-cap for "debt sprint": mild rerun showed shorter caps leave
-        # required factor under threshold (missing 2 → 28).
-        cap = None
-        if quality_bad or month_q < QUALITY_MONTH_LOW:
-            cap = SHORT_EXPOSURE_CAP
+        # Deep-not-wide (vs b7356ad): breadth via required_value_scale; depth via
+        # uncapped exposure. Only very_bad sky clamps + BACKUP-first. Mild
+        # quality_bad / low month prior no longer apply SHORT_EXPOSURE_CAP or
+        # force BACKUP→BRIGHT ladder (original v2 B p90 was ~2561s).
+        cap = VERY_SHORT_EXPOSURE_CAP if very_bad else None
         if very_bad:
-            cap = VERY_SHORT_EXPOSURE_CAP
-        # Raise required search weight (depth stays uncapped on good sky —
+            prefer = ("BACKUP", "BRIGHT", "DARK")
+        elif quality_bad and (last_q < QUALITY_LOW or median5 < QUALITY_MEDIAN_LOW):
+            # Soft degrade: BRIGHT first, DARK still allowed (not BACKUP-dense).
+            prefer = ("BRIGHT", "DARK", "BACKUP")
+            reason_parts.append("mild-Q deep debt")
+        else:
+            prefer = ("DARK", "BRIGHT", "BACKUP")
+        # Raise required search weight (depth stays uncapped on non-very-bad sky —
         # no late-season / rain exposure soft-cap: sim-C + breadth-cap regress
         # proved short caps leave required factor under threshold).
         req_scale = 1.5 if debt >= DEBT_CRITICAL else 1.3
@@ -294,10 +307,10 @@ def classify(
             mode=mode,
             protocols=tuple(protocols),
             advice_priority="required",
-            advice_risk="conservative" if quality_bad else "balanced",
+            advice_risk="conservative" if very_bad else ("balanced" if not quality_bad else "conservative"),
             max_exposure_cap=cap,
-            forbid_idle_wait=quality_bad or very_bad or debt_rising,
-            prefer_programs=("BACKUP", "BRIGHT", "DARK") if quality_bad else ("DARK", "BRIGHT", "BACKUP"),
+            forbid_idle_wait=very_bad or debt_rising,
+            prefer_programs=prefer,
             request_value_scale=1.1 if has_request else 1.0,
             required_value_scale=req_scale,
             recover_value_scale=1.0,
@@ -312,9 +325,18 @@ def classify(
         if debt_watch:
             protocols.append(PROTO_REQ)
         reason_parts.append(f"quality last={last_q:.2f} med5={median5:.2f}")
-        # Rainy L3 with open debt: higher required weight only (多场指向靠抬权，
-        # 不砍曝光深度 — breadth-cap 在 sim-C 上打穿必做阈).
-        cap = VERY_SHORT_EXPOSURE_CAP if very_bad else SHORT_EXPOSURE_CAP
+        # Rainy L3 with open debt: lift weight + keep depth (多场靠抬权，不砍曝).
+        # Pure P-Q (no debt): still short-cap + BACKUP ladder.
+        if very_bad:
+            cap = VERY_SHORT_EXPOSURE_CAP
+            prefer = ("BACKUP", "BRIGHT", "DARK")
+        elif debt_watch:
+            cap = None
+            prefer = ("DARK", "BRIGHT", "BACKUP")
+            reason_parts.append("L3 debt watch deep")
+        else:
+            cap = SHORT_EXPOSURE_CAP
+            prefer = ("BACKUP", "BRIGHT", "DARK")
         return ModeDecision(
             level=level,
             mode=mode,
@@ -323,7 +345,7 @@ def classify(
             advice_risk="conservative",
             max_exposure_cap=cap,
             forbid_idle_wait=True,
-            prefer_programs=("BACKUP", "BRIGHT", "DARK"),
+            prefer_programs=prefer,
             request_value_scale=1.1 if has_request else 1.0,
             required_value_scale=1.4 if debt_watch else 1.1,
             recover_value_scale=1.0,
