@@ -39,19 +39,25 @@ REQUEST_CRITICAL_HOURS = 4.0
 QUALITY_LOW = 0.42          # was 0.45 (post-loosen); local α-synth saw 0.42 edge thrash → P-Q
 QUALITY_MEDIAN_LOW = 0.40   # was 0.60
 QUALITY_MONTH_LOW = 0.35    # was 0.50
-DEBT_URGENT_RATIO = 0.45    # was 0.15 — clear >45% of open debt per remaining night
+DEBT_URGENT_RATIO = 0.40    # was 0.45 — rain-season B/C: flag urgent slightly earlier
 DEBT_CRITICAL = 60          # was 10 — practice/formal open hundreds early; 10 always fired
 DEBT_SOFT_FLOOR = 8         # ignore tiny residual debt for mode switch
-# Rough REQUIRED clears per night when JointSearch is debt-aware (multi-fiber).
-EST_REQUIRED_PER_NIGHT = 12.0
-DEBT_SCHEDULE_SLACK = 0.85  # urgent if nights_needed > nights_left * slack
+# Rough REQUIRED clears per night (pessimistic vs 12): rainy multi-field nights
+# clear slower; lower estimate → capacity urgency fires earlier (债急提前).
+EST_REQUIRED_PER_NIGHT = 9.0
+DEBT_SCHEDULE_SLACK = 1.0   # was 0.85 — urgent once nights_needed > nights_left
 # Late-season debt weight only (no exposure soft-cap — short cards need depth
 # to push required factor over threshold; local mild regress proved this).
-DEBT_SPRINT_NIGHTS = 5
-DEBT_FINAL_NIGHTS = 2
+# Widen sprint window so B-class (≈18-night proxies) lifts required earlier.
+DEBT_SPRINT_NIGHTS = 8
+DEBT_FINAL_NIGHTS = 4
 RECOVER_WINDOW_HOURS = 48.0
 SHORT_EXPOSURE_CAP = 1800   # was 600 — still below optimistic 3600 on bad quality
 VERY_SHORT_EXPOSURE_CAP = 900  # was 300
+# Rainy / P-Q nights with open debt: slightly shorter than SHORT so more fields
+# get a shot (广度清债). Still above the rejected late-season soft-cap floor
+# that left required factor under threshold on mild.
+RAIN_DEBT_EXPOSURE_CAP = 1500
 # PROTECT only when the open window is actually short / critical (not all season).
 PROTECT_ALWAYS_HOURS = 18.0
 
@@ -168,8 +174,8 @@ def classify(
     debt_rising = bool(getattr(state, "required_debt_rising", False))
     debt_urgent = debt > DEBT_SOFT_FLOOR and (
         nights_needed > nights_left * DEBT_SCHEDULE_SLACK
-        or debt_ratio > DEBT_URGENT_RATIO and nights_left <= 20
-        or (debt >= DEBT_CRITICAL and nights_left <= 12)
+        or debt_ratio > DEBT_URGENT_RATIO and nights_left <= 24
+        or (debt >= DEBT_CRITICAL and nights_left <= 18)
         or debt_rising
     )
     debt_watch = debt > DEBT_SOFT_FLOOR and not debt_urgent
@@ -229,10 +235,23 @@ def classify(
         if quality_bad:
             protocols.append(PROTO_Q)
         reason_parts.append(f"request window {hours_left:.1f}h left")
-        share = 0.9 if critical or hours_left <= REQUEST_URGENT_HOURS else 0.7
+        # PROTECT must not starve P-REQ: leave room for required when debt is live.
+        if debt_urgent:
+            share = 0.7 if critical or hours_left <= REQUEST_URGENT_HOURS else 0.55
+        elif debt_watch:
+            share = 0.8 if critical or hours_left <= REQUEST_URGENT_HOURS else 0.6
+        else:
+            share = 0.9 if critical or hours_left <= REQUEST_URGENT_HOURS else 0.7
         cap = SHORT_EXPOSURE_CAP if quality_bad else None
+        if quality_bad and (debt_urgent or debt_watch):
+            cap = RAIN_DEBT_EXPOSURE_CAP
+            reason_parts.append("rain debt breadth cap")
         if very_bad:
             cap = VERY_SHORT_EXPOSURE_CAP
+        req_in_protect = 1.45 if debt_urgent else (1.3 if debt_watch else 1.15)
+        rq_scale = 1.6 if critical else (1.35 if hours_left <= REQUEST_URGENT_HOURS else 1.2)
+        if debt_urgent:
+            rq_scale = min(rq_scale, 1.4)  # don't let request weight bury required
         return ModeDecision(
             level=level,
             mode=mode,
@@ -242,8 +261,8 @@ def classify(
             max_exposure_cap=cap,
             forbid_idle_wait=True,
             prefer_programs=("BACKUP", "BRIGHT", "DARK") if quality_bad else ("DARK", "BRIGHT", "BACKUP"),
-            request_value_scale=1.6 if critical else (1.35 if hours_left <= REQUEST_URGENT_HOURS else 1.2),
-            required_value_scale=1.25 if debt_urgent else (1.1 if debt_watch else 1.05),
+            request_value_scale=rq_scale,
+            required_value_scale=req_in_protect,
             recover_value_scale=1.0,
             request_slot_share=share,
             reason="; ".join(reason_parts),
@@ -265,13 +284,20 @@ def classify(
             cap = SHORT_EXPOSURE_CAP
         if very_bad:
             cap = VERY_SHORT_EXPOSURE_CAP
-        # Late-season: raise required search weight only (depth stays uncapped on good sky).
-        req_scale = 1.45 if debt >= DEBT_CRITICAL else 1.25
+        # Raise required search weight (depth stays uncapped on good sky —
+        # no late-season exposure soft-cap). Rainy P-Q nights use breadth cap.
+        req_scale = 1.55 if debt >= DEBT_CRITICAL else 1.35
+        if quality_bad and debt > DEBT_SOFT_FLOOR:
+            req_scale = max(req_scale, 1.6)
+            reason_parts.append("rain debt weight")
+            if cap is None or cap > RAIN_DEBT_EXPOSURE_CAP:
+                cap = RAIN_DEBT_EXPOSURE_CAP
+            reason_parts.append("rain debt breadth cap")
         if nights_left <= DEBT_SPRINT_NIGHTS and debt > DEBT_SOFT_FLOOR:
-            req_scale = max(req_scale, 1.65)
+            req_scale = max(req_scale, 1.7)
             reason_parts.append("debt sprint weight")
         if nights_left <= DEBT_FINAL_NIGHTS and debt > DEBT_SOFT_FLOOR:
-            req_scale = max(req_scale, 1.8)
+            req_scale = max(req_scale, 1.85)
             reason_parts.append("debt final nights")
         return ModeDecision(
             level=level,
@@ -282,10 +308,10 @@ def classify(
             max_exposure_cap=cap,
             forbid_idle_wait=quality_bad or very_bad or debt_rising,
             prefer_programs=("BACKUP", "BRIGHT", "DARK") if quality_bad else ("DARK", "BRIGHT", "BACKUP"),
-            request_value_scale=1.15 if has_request else 1.0,
+            request_value_scale=1.1 if has_request else 1.0,
             required_value_scale=req_scale,
             recover_value_scale=1.0,
-            request_slot_share=0.15 if has_request else 0.0,
+            request_slot_share=0.1 if has_request else 0.0,
             reason="; ".join(reason_parts),
         )
 
@@ -296,7 +322,12 @@ def classify(
         if debt_watch:
             protocols.append(PROTO_REQ)
         reason_parts.append(f"quality last={last_q:.2f} med5={median5:.2f}")
-        cap = VERY_SHORT_EXPOSURE_CAP if very_bad else SHORT_EXPOSURE_CAP
+        # Rainy L3 with open debt: breadth cap + higher required weight (多场必做).
+        if debt_watch and not very_bad:
+            cap = RAIN_DEBT_EXPOSURE_CAP
+            reason_parts.append("rain debt breadth cap")
+        else:
+            cap = VERY_SHORT_EXPOSURE_CAP if very_bad else SHORT_EXPOSURE_CAP
         return ModeDecision(
             level=level,
             mode=mode,
@@ -306,8 +337,8 @@ def classify(
             max_exposure_cap=cap,
             forbid_idle_wait=True,
             prefer_programs=("BACKUP", "BRIGHT", "DARK"),
-            request_value_scale=1.15 if has_request else 1.0,
-            required_value_scale=1.2 if debt_watch else 1.1,
+            request_value_scale=1.1 if has_request else 1.0,
+            required_value_scale=1.55 if debt_watch else 1.1,
             recover_value_scale=1.0,
             request_slot_share=0.1 if has_request else 0.0,
             reason="; ".join(reason_parts),
@@ -325,7 +356,7 @@ def classify(
         reason_parts.append(f"open request {hours_left:.1f}h (soft)")
     if debt_watch:
         soft_protocols.append(PROTO_REQ)
-        required_scale = 1.15
+        required_scale = 1.3  # soft early lift before capacity urgency (债急提前)
         reason_parts.append(f"debt watch D={debt}")
     return ModeDecision(
         level=LEVEL_L4,

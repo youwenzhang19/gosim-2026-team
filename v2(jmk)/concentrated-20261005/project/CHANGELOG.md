@@ -37,3 +37,11 @@ SOTA are not claimed. Diagnostic artifacts and tests live outside the upload ZIP
 - After local α-synthetic / α-synth-mild reruns: QUALITY_LOW 0.45→0.42 (edge P-Q).
 - Late-season debt weight: nights_left≤5 → required×1.65; ≤2 → ×1.8.
 - Rejected: late-season exposure soft-cap (mild regress missing 2→28 / −1400).
+
+## Debt-breadth tune for rain B/C proxies (2026-10-05)
+
+- Knob-only: earlier capacity urgency (EST_REQUIRED_PER_NIGHT 12→9, slack 0.85→1.0,
+  sprint/final nights 5/2→8/4); rain+debt required weight ↑; RAIN_DEBT_EXPOSURE_CAP=1500
+  on P-Q debt nights only (not late-season good-sky soft-cap); PROTECT keeps higher
+  required scale / lower request share when debt live; calendar miss_defer 0.08→0.12.
+- Unchanged: JointSearch algorithm, L0–L4 / four-mode framework, Planner.decide.

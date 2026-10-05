@@ -51,9 +51,11 @@ class RequiredCalendar:
                   max(0, state.last_night[i] - night_index))
         # Approximate deferral loss under finite capacity and unknown weather,
         # never a calibrated probability or a hidden-event forecast.
-        miss_defer = 0.35 + 0.65 / (1 + 0.08 * future)
+        # 0.12 (was 0.08): remaining opportunity nights decay faster → earlier
+        # calendar pressure for B-class rain debt (旋钮 only; geometry unchanged).
+        miss_defer = 0.35 + 0.65 / (1 + 0.12 * future)
         value = max(0.0, state.scoring.required_penalty) * miss_defer
         if state.advice_priority == "required":
-            value = min(state.scoring.required_penalty, value * 1.1)
+            value = min(state.scoring.required_penalty, value * 1.2)
         value *= getattr(state, "duty_required_value_scale", 1.0)
         return value
