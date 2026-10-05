@@ -359,16 +359,16 @@ def _knobs_from_choice(
 
     if choice == "深清债":
         protocols = [PROTO_REQ]
-        # 还债少而深：禁止绑浅避险，除非天真烂
-        if very_bad and allow_shallow:
-            protocols.append(PROTO_Q)
-            cap = VERY_SHORT_EXPOSURE_CAP
-            prefer = ("BACKUP", "BRIGHT", "DARK")
-            reason += "; very_bad允许浅"
-        else:
+        # 还债少而深：永不绑 P-Q / 短帽 / BACKUP-first。
+        # force_deep 时同样禁止浅叠。真烂天只用 BRIGHT 优先，仍不短帽。
+        if force_deep or not very_bad:
             cap = None
             prefer = ("DARK", "BRIGHT", "BACKUP")
             reason += "; deep_debt_clear"
+        else:
+            cap = None
+            prefer = ("BRIGHT", "DARK", "BACKUP")
+            reason += "; deep_debt_clear(very_bad→BRIGHT)"
         if force_deep:
             reason += "; force_deep"
         return ModeDecision(
