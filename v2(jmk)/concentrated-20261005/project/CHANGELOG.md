@@ -35,5 +35,5 @@ SOTA are not claimed. Diagnostic artifacts and tests live outside the upload ZIP
 ## Duty-mode local practice follow-up (2026-10-05)
 
 - After local α-synthetic / α-synth-mild reruns: QUALITY_LOW 0.45→0.42 (edge P-Q).
-- Late-season debt sprint: nights_left≤5 raise required weight + soft 1500s cap;
-  nights_left≤2 → 1.8× required + 1200s (clear REQUIRED breadth vs ultra-long DARK).
+- Late-season debt weight: nights_left≤5 → required×1.65; ≤2 → ×1.8.
+- Rejected: late-season exposure soft-cap (mild regress missing 2→28 / −1400).
