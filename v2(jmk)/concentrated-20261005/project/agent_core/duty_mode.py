@@ -292,7 +292,7 @@ def classify(
             reason_parts.append("rain debt weight")
             if cap is None or cap > RAIN_DEBT_EXPOSURE_CAP:
                 cap = RAIN_DEBT_EXPOSURE_CAP
-            reason_parts.append("rain debt breadth cap")
+                reason_parts.append("rain debt breadth cap")
         if nights_left <= DEBT_SPRINT_NIGHTS and debt > DEBT_SOFT_FLOOR:
             req_scale = max(req_scale, 1.7)
             reason_parts.append("debt sprint weight")
