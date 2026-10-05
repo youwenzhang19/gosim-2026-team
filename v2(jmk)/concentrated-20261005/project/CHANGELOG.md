@@ -15,3 +15,12 @@ preserved separately. No upload, final-version selection, push or merge was done
 
 This changes the policy; it is not a lossless speed-only patch. Online gains and
 SOTA are not claimed. Diagnostic artifacts and tests live outside the upload ZIP.
+
+## Duty-mode protocols (2026-10-05)
+
+- Add `duty_mode.py`: L0–L4 triage → NORMAL / PROTECT / RECOVER / CONSERVE (O(1)).
+- Hard SOPs P-RQ / P-REQ / P-Q / P-RS switch JointSearch constraints only (no second
+  decision agent; advisor remains async soft advice with rule fallback).
+- PROTECT prefers request-completing fields; CONSERVE caps exposure and prefers
+  BACKUP/BRIGHT; RECOVER reweights invalidated / required targets after resync.
+- API key is optional at startup; missing key disables advisor, not the planner.

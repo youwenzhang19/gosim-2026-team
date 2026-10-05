@@ -4,6 +4,7 @@ from __future__ import annotations
 from .advisor import EventAdvisor
 from .calendar import RequiredCalendar
 from .clock import Clock
+from .duty_mode import apply_to_state, classify
 from .geometry import format_utc, parse_utc, wrap180
 from .llm_client import LLMClient
 from .memory import TraceLog
@@ -72,6 +73,9 @@ class Planner(JointSearch):
         # Requests need fresh exposures even for previously saturated targets.
         reactivated = set(self._request_thresholds_now) - set(state.active)
         state.active.extend(i for i in sorted(reactivated) if state.hmax[i] > 0)
+        # P-RS: keep recover-queue targets in the active pool after resync.
+        recover = getattr(state, "recover_targets", set()) - set(state.active)
+        state.active.extend(i for i in sorted(recover) if state.hmax[i] > 0)
         self._pace(now)
         night = state.current_night(now)
         if night is None:
@@ -80,22 +84,51 @@ class Planner(JointSearch):
                     if nxt else {"action": "finish", "reason": "no observing night left"})
         night_index, night_start, night_end = night
         self.advisor.update(state, payload, night_index, self.clock.wall_remaining(), self._last_forecast_notices)
+        # Hard duty sheet: L0–L4 → mode table. Overrides soft advisor priority/risk.
+        decision = classify(
+            state,
+            now=now,
+            night_index=night_index,
+            hours=hours,
+            request_views=self._request_views_now,
+            last_result=result,
+        )
+        apply_to_state(state, decision)
+        self.log(f"duty: mode={decision.mode} L{decision.level} "
+                 f"protocols={','.join(decision.protocols) or '-'} ({decision.reason})")
+        self.trace.write({"event": "duty_mode", "mode": decision.mode, "level": decision.level,
+                          "protocols": list(decision.protocols), "reason": decision.reason})
         if (night_end - now).total_seconds() < state.min_exposure:
             nxt = state.next_night_start(now)
             return ({"action": "wait", "until_utc": format_utc(nxt), "reason": "night ending"}
                     if nxt else {"action": "finish", "reason": "survey over"})
         if state.site_closed():
+            # Sole legal long idle: whole-sky rain/storm (P-Q backup B2).
             return {"action": "wait", "duration_seconds": self._to_next_slot(now, night_start),
                     "reason": "whole-sky rain/storm notice"}
         report = self._maybe_report(hours, payload)
         if report:
             return report
         action = self.plan(now, night_end, night_index, hours)
+        if action is None and state.duty_forbid_idle_wait:
+            # P-Q / P-RQ backup: try short BACKUP before idling a slot.
+            saved_cap = state.duty_max_exposure_cap
+            state.duty_max_exposure_cap = min(state.duty_max_exposure_cap or 300, 300)
+            prev_force = state.force_program
+            state.force_program = prev_force or "BACKUP"
+            action = self.plan(now, night_end, night_index, hours)
+            state.duty_max_exposure_cap = saved_cap
+            state.force_program = prev_force
+            if action is not None:
+                self.log("duty: short BACKUP fill avoided idle wait")
         if action is None:
+            state.idle_wait_streak += 1
             return {"action": "wait", "duration_seconds": self._to_next_slot(now, night_start),
                     "reason": "nothing useful is up"}
+        state.idle_wait_streak = 0
         self.observe_count += 1
-        action["reason"] = f"{len(action['assignments'])} fibres, program {action['program']}"
+        action["reason"] = (f"{len(action['assignments'])} fibres, program {action['program']}, "
+                            f"mode {state.duty_mode}")
         return action
 
     def note_action(self, action):
@@ -103,6 +136,8 @@ class Planner(JointSearch):
         if action.get("action") != "observe":
             self.state.pending.clear()
             self.state.pending_action_index = None
+        else:
+            self.state.idle_wait_streak = 0
 
     def on_finish(self, payload):
         self.trace.write({"event": "finish", **payload,

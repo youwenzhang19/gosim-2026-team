@@ -155,6 +155,28 @@ class SurveyState:
         self.hit_rate = 1.0
         self.fast_level = 0
 
+        # Duty-mode sheet (NORMAL/PROTECT/RECOVER/CONSERVE). Soft advisor knobs
+        # are overwritten when a hard mode is active; JointSearch reads these.
+        self.duty_mode = "NORMAL"
+        self.duty_level = 4
+        self.duty_protocols: tuple[str, ...] = ()
+        self.duty_reason = "routine science"
+        self.duty_max_exposure_cap: Optional[int] = None
+        self.duty_forbid_idle_wait = False
+        self.duty_prefer_programs: tuple[str, ...] = ("DARK", "BRIGHT", "BACKUP")
+        self.duty_request_value_scale = 1.0
+        self.duty_required_value_scale = 1.0
+        self.duty_recover_value_scale = 1.0
+        self.duty_request_slot_share = 0.0
+        self.recover_until_hours = float("-inf")
+        self.recover_targets: set[int] = set()
+        self._resync_just_happened = False
+        self.required_debt_prev = 0
+        self.required_debt_rising = False
+        self.idle_wait_streak = 0
+        self._duty_night_index = 0
+        self.recent_qualities: deque = deque(maxlen=8)
+
         # Separate science scores and conservative completion-factor lower bounds.
         # Only surviving actual exposures remain after a Hard-mode rollback.
         self.ledger: list[ExposureRecord] = []
@@ -234,6 +256,8 @@ class SurveyState:
                         self.terrain.add(notice.get("direction"))
             elif message.get("record_type") == "state_resync":
                 self._resync(message)
+                # L0 signal for duty-mode: force RECOVER on the next decide step.
+                self._resync_just_happened = True
         notices = (latest_bulletin or {}).get("notices", [])
         self.notices = {f"{n.get('event_kind')}|{n.get('direction')}" for n in notices
                         if n.get("event_kind") != "terrain_obstruction"}
@@ -377,11 +401,20 @@ class SurveyState:
                 ratio = (factor * f0t0) / (self.flux[i] * self.pending_duration * prediction.model)
                 self._samples.append((hours, ratio))
                 self._all_ratios.append(ratio)
+                self.recent_qualities.append(ratio)
                 self.direction_ratios[int((prediction.az + 22.5) % 360 / 45)].append(ratio)
                 if prediction.clean:
                     self.clean_history.append((hours, self.pending_night, ratio))
         self.pending.clear()
         self.update_scale(hours)
+        self._update_required_debt_trend()
+
+    def _update_required_debt_trend(self) -> None:
+        threshold = self.scoring.required_threshold
+        debt = sum(1 for i, required in enumerate(self.required)
+                   if required and self.factor[i] < threshold)
+        self.required_debt_rising = debt > self.required_debt_prev
+        self.required_debt_prev = debt
 
     def quality_scales(self, az: float) -> tuple[float, float, float]:
         """Shrunk 20/50/80 percentiles from valid, non-saturated positive hits.

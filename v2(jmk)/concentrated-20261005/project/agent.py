@@ -38,11 +38,12 @@ from agent_core.validation import ActionRejected, fallback_action, validate_acti
 
 
 def main() -> int:
+    # Model is optional: hard duty modes + JointSearch run without a key.
+    # Advisor roles fail closed to rule fallback when the key is missing.
     try:
         require_api_key()
     except MissingAPIKeyError as exc:
-        log(f"agent: {exc}")
-        return 1
+        log(f"agent: {exc}; continuing with rule-only duty modes (advisor disabled)")
 
     state = None
     planner = None

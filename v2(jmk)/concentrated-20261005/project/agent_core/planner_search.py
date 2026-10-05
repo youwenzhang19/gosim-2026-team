@@ -114,9 +114,12 @@ class JointSearch:
         state = self.state
         value = max(0, state.weight[i] * self._top_multiplier - state.best_score[i])
         if state.required[i] and state.factor[i] < state.scoring.required_threshold:
-            value += max(0, state.scoring.required_penalty)
+            value += max(0, state.scoring.required_penalty) * getattr(state, "duty_required_value_scale", 1.0)
         request_scale = {"request": 1.1, "science": 0.85}.get(state.advice_priority, 1.0)
+        request_scale *= getattr(state, "duty_request_value_scale", 1.0)
         value += self._request_bonus_now.get(i, 0) * request_scale
+        if i in getattr(state, "recover_targets", ()):
+            value *= getattr(state, "duty_recover_value_scale", 1.0)
         value += self._uniformity_gain(i)
         return value * max(0.1, 0.65 ** min(5, state.misses[i]))
 
@@ -170,11 +173,16 @@ class JointSearch:
 
     def _duration_candidates(self, groups, cap, now):
         state = self.state
+        if state.duty_max_exposure_cap is not None:
+            cap = min(cap, state.duty_max_exposure_cap)
         cap = int(min(state.max_exposure, cap))
         if cap < state.min_exposure:
             return []
         durations = {state.min_exposure, cap}
         bases = (300, 600, 900, 1500, 2400, 3600)
+        if state.duty_max_exposure_cap is not None:
+            # CONSERVE / P-Q: keep short candidates; drop optimistic long DARK waits.
+            bases = tuple(d for d in (60, 120, 180, 300, 450, 600) if d <= cap)
         durations.update(d for d in bases if state.min_exposure <= d <= cap)
         boundaries = []
         for items in groups.values():
@@ -210,7 +218,7 @@ class JointSearch:
         ha = wrap180(lst - c_ra)
         up = (h - ha) / SIDEREAL_DEG_PER_SECOND if h < 180 else 1e9
         plans = []
-        programs = (state.force_program,) if state.force_program else ("DARK", "BRIGHT", "BACKUP")
+        programs = (state.force_program,) if state.force_program else tuple(state.duty_prefer_programs or ("DARK", "BRIGHT", "BACKUP"))
         for duration in self._duration_candidates(groups, min(seconds_left, up), now):
             for program in programs:
                 chosen = {}
@@ -409,6 +417,23 @@ class JointSearch:
         if not plans:
             return None
         best = max(plans, key=lambda x: x["rate"])
+        # PROTECT / P-RQ: when a plan completes an open request this step, prefer it
+        # even if the pure rate is slightly lower (window discipline > science rate).
+        if state.duty_mode == "PROTECT" and self._request_views_now:
+            completers = [p for p in plans if p.get("completed")]
+            if completers:
+                best = max(completers, key=lambda x: (x["reward"], x["rate"]))
+            else:
+                # Prefer any plan that hits at least one request target.
+                partial = []
+                for p in plans:
+                    hits = 0
+                    for view in self._request_views_now:
+                        hits += len(self._request_hits(p["items"], p["duration"], now, view))
+                    if hits:
+                        partial.append((hits, p))
+                if partial:
+                    best = max(partial, key=lambda x: (x[0], x[1]["rate"]))[1]
         best = self._two_step(plans, best, now, night_end, night_index, hours)
         c_alt, c_az = best["pointing"]
         duration = best["duration"]

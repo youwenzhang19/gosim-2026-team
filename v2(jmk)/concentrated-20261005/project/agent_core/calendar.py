@@ -53,4 +53,7 @@ class RequiredCalendar:
         # never a calibrated probability or a hidden-event forecast.
         miss_defer = 0.35 + 0.65 / (1 + 0.08 * future)
         value = max(0.0, state.scoring.required_penalty) * miss_defer
-        return min(state.scoring.required_penalty, value * 1.1) if state.advice_priority == "required" else value
+        if state.advice_priority == "required":
+            value = min(state.scoring.required_penalty, value * 1.1)
+        value *= getattr(state, "duty_required_value_scale", 1.0)
+        return value
