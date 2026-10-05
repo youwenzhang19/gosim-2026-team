@@ -36,7 +36,7 @@ PROTO_RS = "P-RS"    # resync re-observation ledger
 # DARK science on only mildly sub-par quality.
 REQUEST_URGENT_HOURS = 12.0
 REQUEST_CRITICAL_HOURS = 4.0
-QUALITY_LOW = 0.45          # was 0.70 — only truly poor last shot
+QUALITY_LOW = 0.42          # was 0.45 (post-loosen); local α-synth saw 0.42 edge thrash → P-Q
 QUALITY_MEDIAN_LOW = 0.40   # was 0.60
 QUALITY_MONTH_LOW = 0.35    # was 0.50
 DEBT_URGENT_RATIO = 0.45    # was 0.15 — clear >45% of open debt per remaining night
@@ -45,6 +45,11 @@ DEBT_SOFT_FLOOR = 8         # ignore tiny residual debt for mode switch
 # Rough REQUIRED clears per night when JointSearch is debt-aware (multi-fiber).
 EST_REQUIRED_PER_NIGHT = 12.0
 DEBT_SCHEDULE_SLACK = 0.85  # urgent if nights_needed > nights_left * slack
+# Late-season debt sprint (local α-synth-mild: CONSERVE all season, still missing 2).
+DEBT_SPRINT_NIGHTS = 5      # nights_left ≤ this → breadth over ultra-long DARK
+DEBT_SPRINT_EXPOSURE_CAP = 1500
+DEBT_FINAL_NIGHTS = 2
+DEBT_FINAL_EXPOSURE_CAP = 1200
 RECOVER_WINDOW_HOURS = 48.0
 SHORT_EXPOSURE_CAP = 1800   # was 600 — still below optimistic 3600 on bad quality
 VERY_SHORT_EXPOSURE_CAP = 900  # was 300
@@ -259,6 +264,21 @@ def classify(
             cap = SHORT_EXPOSURE_CAP
         if very_bad:
             cap = VERY_SHORT_EXPOSURE_CAP
+        # Late-season sprint: practice short cards still left REQUIRED unpaid while
+        # burning 3ks DARK; soft-cap breadth and raise required weight.
+        req_scale = 1.45 if debt >= DEBT_CRITICAL else 1.25
+        if nights_left <= DEBT_SPRINT_NIGHTS and debt > DEBT_SOFT_FLOOR:
+            req_scale = max(req_scale, 1.65)
+            if cap is None:
+                cap = DEBT_SPRINT_EXPOSURE_CAP
+            else:
+                cap = min(cap, DEBT_SPRINT_EXPOSURE_CAP)
+            reason_parts.append("debt sprint breadth")
+        if nights_left <= DEBT_FINAL_NIGHTS and debt > DEBT_SOFT_FLOOR:
+            req_scale = max(req_scale, 1.8)
+            final_cap = DEBT_FINAL_EXPOSURE_CAP
+            cap = final_cap if cap is None else min(cap, final_cap)
+            reason_parts.append("debt final nights")
         return ModeDecision(
             level=level,
             mode=mode,
@@ -266,10 +286,10 @@ def classify(
             advice_priority="required",
             advice_risk="conservative" if quality_bad else "balanced",
             max_exposure_cap=cap,
-            forbid_idle_wait=quality_bad or very_bad or debt_rising,
+            forbid_idle_wait=quality_bad or very_bad or debt_rising or nights_left <= DEBT_SPRINT_NIGHTS,
             prefer_programs=("BACKUP", "BRIGHT", "DARK") if quality_bad else ("DARK", "BRIGHT", "BACKUP"),
             request_value_scale=1.15 if has_request else 1.0,
-            required_value_scale=1.45 if debt >= DEBT_CRITICAL else 1.25,
+            required_value_scale=req_scale,
             recover_value_scale=1.0,
             request_slot_share=0.15 if has_request else 0.0,
             reason="; ".join(reason_parts),

@@ -31,3 +31,9 @@ SOTA are not claimed. Diagnostic artifacts and tests live outside the upload ZIP
 - Loosen QUALITY_* / DEBT_* / exposure caps; capacity-based debt urgency; PROTECT
   only when request window ≤18h; good-sky CONSERVE keeps DARK uncapped.
 - Unique Planner.decide + mode framework unchanged.
+
+## Duty-mode local practice follow-up (2026-10-05)
+
+- After local α-synthetic / α-synth-mild reruns: QUALITY_LOW 0.45→0.42 (edge P-Q).
+- Late-season debt sprint: nights_left≤5 raise required weight + soft 1500s cap;
+  nights_left≤2 → 1.8× required + 1200s (clear REQUIRED breadth vs ultra-long DARK).
