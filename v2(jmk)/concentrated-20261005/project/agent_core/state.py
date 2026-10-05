@@ -176,6 +176,16 @@ class SurveyState:
         self.idle_wait_streak = 0
         self._duty_night_index = 0
         self.recent_qualities: deque = deque(maxlen=8)
+        # v3 Pilot/Copilot ledger (abandoned requests never re-PROTECT; avoid streak).
+        self.abandoned_request_ids: set = set()
+        self.avoid_streak_nights = 0
+        self.avoid_last_night_index = -1
+        self.avoid_debt_anchor = 0
+        self.pilot_force_deep = False
+        self.pilot_tolerate_debt = False
+        self.copilot_long = ""
+        self.copilot_mid = ""
+        self.copilot_short = ""
 
         # Separate science scores and conservative completion-factor lower bounds.
         # Only surviving actual exposures remain after a Hard-mode rollback.

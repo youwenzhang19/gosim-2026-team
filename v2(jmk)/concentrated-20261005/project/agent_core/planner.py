@@ -68,6 +68,12 @@ class Planner(JointSearch):
         self._current_action_index = payload.get("observe_action_index")
         self._active_requests_now = payload.get("active_requests") or []
         self._request_views_now = self._request_views(self._active_requests_now, now)
+        # v3: abandoned timed requests stay abandoned — hide from search too.
+        abandoned = getattr(state, "abandoned_request_ids", set()) or set()
+        if abandoned:
+            self._request_views_now = [
+                v for v in self._request_views_now if str(v.get("id")) not in abandoned
+            ]
         self._request_thresholds_now = self._request_thresholds(self._active_requests_now)
         self._request_bonus_now = self._request_bonuses(self._active_requests_now, now)
         # Requests need fresh exposures even for previously saturated targets.
@@ -94,10 +100,37 @@ class Planner(JointSearch):
             last_result=result,
         )
         apply_to_state(state, decision)
+        # Re-hide any requests Pilot just abandoned this step.
+        abandoned = getattr(state, "abandoned_request_ids", set()) or set()
+        if abandoned:
+            self._request_views_now = [
+                v for v in self._request_views_now if str(v.get("id")) not in abandoned
+            ]
+            self._request_thresholds_now = self._request_thresholds(self._active_requests_now)
+            self._request_bonus_now = self._request_bonuses(self._active_requests_now, now)
+        # v3 provenance: Pilot signs; Copilot menu is advisory arithmetic only.
+        self.log(
+            f"pilot: mode={decision.mode} L{decision.level} "
+            f"protocol={','.join(decision.protocols) or '-'} "
+            f"long={decision.pilot_long or '-'} mid={decision.pilot_mid or '-'} "
+            f"short={decision.pilot_short or '-'} ({decision.reason})"
+        )
+        self.log(f"copilot: {decision.copilot_reason or decision.pilot_short or '-'}")
+        # Keep legacy duty: line for older log greps.
         self.log(f"duty: mode={decision.mode} L{decision.level} "
                  f"protocols={','.join(decision.protocols) or '-'} ({decision.reason})")
-        self.trace.write({"event": "duty_mode", "mode": decision.mode, "level": decision.level,
-                          "protocols": list(decision.protocols), "reason": decision.reason})
+        self.trace.write({
+            "event": "duty_mode",
+            "version": "v3",
+            "mode": decision.mode,
+            "level": decision.level,
+            "protocols": list(decision.protocols),
+            "reason": decision.reason,
+            "pilot_long": decision.pilot_long,
+            "pilot_mid": decision.pilot_mid,
+            "pilot_short": decision.pilot_short,
+            "copilot": decision.copilot_reason,
+        })
         if (night_end - now).total_seconds() < state.min_exposure:
             nxt = state.next_night_start(now)
             return ({"action": "wait", "until_utc": format_utc(nxt), "reason": "night ending"}

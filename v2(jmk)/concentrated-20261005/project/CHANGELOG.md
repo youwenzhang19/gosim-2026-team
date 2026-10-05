@@ -47,3 +47,13 @@ SOTA are not claimed. Diagnostic artifacts and tests live outside the upload ZIP
   sim-C weight thrash (missing↑). Breadth = raise required pointing weight, not
   shorter exposures.
 - Unchanged: JointSearch algorithm, L0–L4 / four-mode framework, Planner.decide.
+
+## v3 Pilot/Copilot protocols (2026-10-05)
+
+- Landing name **v3** (vs v2=`0658278` no duty; v2.1=`b7356ad` old duty).
+- Add `copilot.py`: table+arithmetic menu/EV only; no LLM season replan.
+- Fiducials: tolerate required debt ≤3; main debt clear only after ~20% nights
+  AND capacity shortfall; avoid streak ≥3 bad-Q nights with debt not falling →
+  Pilot force-deep; abandoned timed requests never re-PROTECT (no thrash).
+- `Planner.decide` remains sole Pilot; JointSearch unchanged; logs show
+  pilot / copilot / protocol.
