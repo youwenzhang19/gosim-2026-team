@@ -40,8 +40,10 @@ SOTA are not claimed. Diagnostic artifacts and tests live outside the upload ZIP
 
 ## Debt-breadth tune for rain B/C proxies (2026-10-05)
 
-- Knob-only: earlier capacity urgency (EST_REQUIRED_PER_NIGHT 12→9, slack 0.85→1.0,
-  sprint/final nights 5/2→8/4); rain+debt / L3 debt-watch required weight ↑;
-  PROTECT keeps higher required scale when debt live; calendar miss_defer 0.08→0.12.
-- Rejected again: rain debt exposure breadth-cap 1500 (sim-C missing 302→365).
+- Knob-only: earlier capacity urgency (EST_REQUIRED 12→10, slack 0.85→0.95,
+  sprint/final 5/2→6/3); rain+debt / L3 debt-watch required weight ↑;
+  PROTECT keeps higher required scale when debt live; calendar miss_defer 0.08→0.10.
+- Rejected: rain exposure breadth-cap 1500; also dialed back sprint=8 / EST=9 after
+  sim-C weight thrash (missing↑). Breadth = raise required pointing weight, not
+  shorter exposures.
 - Unchanged: JointSearch algorithm, L0–L4 / four-mode framework, Planner.decide.
