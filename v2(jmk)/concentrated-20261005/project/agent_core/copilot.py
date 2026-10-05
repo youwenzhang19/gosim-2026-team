@@ -9,6 +9,7 @@ v3 fiducials (友文 2026-10-05):
   4. Abandoned timed requests stay abandoned (no thrash / 横跳)
 
 Pilot alone selects; this module only scores options and flags risks.
+续改：清债/冲刺长程下短程默认深清债；浅避险加重浅曝税（与手柄一致）。
 """
 from __future__ import annotations
 
@@ -24,6 +25,8 @@ EV_REQUIRED_UNIT = 50.0
 EV_SCIENCE_UNIT = 1.0
 SHALLOW_TAX = 0.15
 IDLE_TAX = 0.10
+
+CLEAR_LONGS = frozenset({"清债优先", "冲刺收官"})
 
 
 @dataclass(frozen=True)
@@ -103,6 +106,8 @@ def build_brief(
     avoid_streak: int,
     abandoned: set,
     in_recover: bool = False,
+    force_deep: bool = False,
+    debt_urgent: bool = False,
 ) -> CopilotBrief:
     """Score long/mid/short options; flag abandon / force-deep / tolerate."""
     debt, nights_left = required_debt_pair(state, night_index)
@@ -110,7 +115,10 @@ def build_brief(
     past_gate = frac >= DEBT_CLEAR_AFTER_FRAC
     short = capacity_shortfall(debt, nights_left)
     tolerate = debt <= DEBT_TOLERANCE
-    force_deep = avoid_streak >= AVOID_MAX_STREAK_NIGHTS and debt > DEBT_TOLERANCE
+    # Caller may already OR in PI force_deep; keep streak gate too.
+    force_deep = bool(force_deep) or (
+        avoid_streak >= AVOID_MAX_STREAK_NIGHTS and debt > DEBT_TOLERANCE
+    )
 
     if frac >= 0.85 or (past_gate and short and nights_left <= 3):
         long_name = "冲刺收官"
@@ -143,25 +151,21 @@ def build_brief(
     abandon_ids: list[str] = []
     req_protect_ev = 0.0
     req_abandon_ev = 0.0
+    clear_long = long_name in CLEAR_LONGS or debt_urgent
 
     if open_views:
         reward = sum(float(v.get("reward", 100.0)) for v in open_views)
         remaining_tgts = sum(int(v.get("remaining", 1)) for v in open_views)
         req_protect_ev = reward - (remaining_tgts * 4.0)
-        # Mild conflict tax only — do not let large D always veto timed rewards.
         if short and debt > DEBT_TOLERANCE:
             req_protect_ev -= min(40.0, 8.0 * max(1, remaining_tgts // 3))
-        # v4: missing a timed request usually does not penalize — forfeit reward only.
         req_abandon_ev = EV_REQUIRED_UNIT * min(debt, 40) * 0.02 - IDLE_TAX * 5
-        # Abandon only when window still long (> urgent) AND abandon clearly wins.
-        # Never abandon inside the default 连指 window (≤12h) or critical (≤4h).
         if (
             short
             and debt > DEBT_TOLERANCE
             and hours_left > 12.0
             and req_abandon_ev > req_protect_ev + 40.0
         ):
-            # Drop the single greediest (largest remaining) request, not the whole set.
             worst = max(open_views, key=lambda v: int(v.get("remaining", 1)))
             abandon_ids = [str(worst["id"])]
             short_name = "放弃限时"
@@ -169,18 +173,26 @@ def build_brief(
         elif hours_left <= 12.0 or critical:
             short_name = "连指"
             short_ev = req_protect_ev
+        elif clear_long and not very_bad:
+            # 菜单与手柄一致：清债长程下默认深清债，不主推浅避险
+            short_name = "深清债"
+            short_ev = long_ev + 8.0 - (SHALLOW_TAX * 30 if quality_bad else 0)
         else:
             short_name = "正常排镜"
             short_ev = mid_ev + req_protect_ev * 0.05
+    elif clear_long and not very_bad:
+        short_name = "深清债"
+        short_ev = long_ev + 8.0
     elif force_deep:
         short_name = "深清债"
         short_ev = long_ev + 8.0
     elif tolerate and debt > 0 and past_gate:
         short_name = "容忍欠债"
         short_ev = long_ev + 4.0
-    elif quality_bad and not force_deep:
+    elif quality_bad and not force_deep and not clear_long:
+        # 浅避险：加重浅曝税；清债长程下不会走到这里
         short_name = "浅避险"
-        short_ev = mid_ev - (SHALLOW_TAX * 20 if avoid_streak >= 2 else 0)
+        short_ev = mid_ev - SHALLOW_TAX * (40 if avoid_streak >= 2 else 25)
     else:
         short_name = "正常排镜"
         short_ev = mid_ev
@@ -188,6 +200,9 @@ def build_brief(
     if force_deep and short_name not in ("连指", "放弃限时"):
         short_name = "深清债"
         short_ev = max(short_ev, long_ev + 8.0)
+    if clear_long and short_name == "浅避险" and not very_bad:
+        short_name = "深清债"
+        short_ev = long_ev + 8.0
 
     options = (
         MenuOption(long_name, "long", long_ev, _risk_long(long_name, debt), 0.7, True),
@@ -201,6 +216,8 @@ def build_brief(
                        short_name == "连指"),
             MenuOption("放弃限时", "short", req_abandon_ev, "弃奖", 0.65,
                        short_name == "放弃限时"),
+            MenuOption("深清债", "short", long_ev + 8.0, "少场", 0.7,
+                       short_name == "深清债"),
         )
 
     reason_parts = [
@@ -210,6 +227,7 @@ def build_brief(
         f"past20%={int(past_gate)}",
         f"cap_short={int(short)}",
         f"avoid_streak={avoid_streak}",
+        f"short={short_name}",
     ]
     if abandon_ids:
         reason_parts.append(f"abandon={','.join(abandon_ids)}")
@@ -217,6 +235,8 @@ def build_brief(
         reason_parts.append("force_deep")
     if tolerate:
         reason_parts.append("tolerate≤3")
+    if clear_long:
+        reason_parts.append("clear_long→深清债")
 
     return CopilotBrief(
         long_name=long_name,

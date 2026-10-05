@@ -186,6 +186,8 @@ class SurveyState:
         self.copilot_long = ""
         self.copilot_mid = ""
         self.copilot_short = ""
+        self.shallow_decision_streak = 0
+        self.pilot_chosen_short = ""
 
         # Separate science scores and conservative completion-factor lower bounds.
         # Only surviving actual exposures remain after a Hard-mode rollback.

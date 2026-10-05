@@ -57,3 +57,12 @@ SOTA are not claimed. Diagnostic artifacts and tests live outside the upload ZIP
   Pilot force-deep; abandoned timed requests never re-PROTECT (no thrash).
 - `Planner.decide` remains sole Pilot; JointSearch unchanged; logs show
   pilot / copilot / protocol.
+
+## v3 framework landing (post-535010e)
+
+- Retire L0–L4 emergency flowchart as the decision brain.
+- Chain: facts → Copilot menu+EV → `pilot.decide` picks short → knobs/labels
+  → JointSearch. Mode/protocol strings are outputs of the pick, not drivers.
+- Add thin `pi.py` hard gates (not a second Pilot): debt-clear forbids shallow
+  stack unless very_bad; force_deep via avoid streak / debt+badQ / shallow streak.
+- Agreed discipline: deep debt clear; force_deep rings; menu synced to knobs.
