@@ -4,9 +4,13 @@ from __future__ import annotations
 from .advisor import EventAdvisor
 from .calendar import RequiredCalendar
 from .clock import Clock
+from .copilot import DEBT_TOLERANCE, required_debt_pair
+from .duty_mode import apply_to_state
 from .geometry import format_utc, parse_utc, wrap180
 from .llm_client import LLMClient
 from .memory import TraceLog
+from . import pi as pi_gates
+from . import pilot as pilot_mod
 from .planner_search import JointSearch
 
 DIRECTION_AZ = {"N": 0.0, "NE": 45.0, "E": 90.0, "SE": 135.0, "S": 180.0,
@@ -53,6 +57,9 @@ class Planner(JointSearch):
         now = parse_utc(payload["now_utc"])
         hours = (now - state.survey_start).total_seconds() / 3600
         self.clock.update(payload.get("wallclock"))
+        # Capture pending observe traits before result clears them (PI shallow streak).
+        prev_program = state.pending_program
+        prev_duration = state.pending_duration
         # Ingest the latest exposure first, then roll back the authoritative window.
         state.on_result(payload.get("last_result"), hours)
         state.on_messages(payload.get("new_messages", []), payload.get("latest_bulletin"))
@@ -63,15 +70,32 @@ class Planner(JointSearch):
         if result.get("action") == "observe":
             self.total_assigned += int(result.get("assigned_count", 0))
             self.total_hit += int(result.get("hit_count", 0))
+            debt_now, _ = required_debt_pair(state, getattr(state, "_duty_night_index", 0))
+            pi_gates.update_shallow_streak(
+                state,
+                duration_seconds=float(prev_duration or 0),
+                program=str(prev_program or ""),
+                debt=debt_now,
+                debt_tolerance=DEBT_TOLERANCE,
+            )
         state.hit_rate = self.total_hit / self.total_assigned if self.total_assigned else 1.0
         self._current_action_index = payload.get("observe_action_index")
         self._active_requests_now = payload.get("active_requests") or []
         self._request_views_now = self._request_views(self._active_requests_now, now)
+        # Abandoned timed requests stay abandoned — hide from search too.
+        abandoned = getattr(state, "abandoned_request_ids", set()) or set()
+        if abandoned:
+            self._request_views_now = [
+                v for v in self._request_views_now if str(v.get("id")) not in abandoned
+            ]
         self._request_thresholds_now = self._request_thresholds(self._active_requests_now)
         self._request_bonus_now = self._request_bonuses(self._active_requests_now, now)
         # Requests need fresh exposures even for previously saturated targets.
         reactivated = set(self._request_thresholds_now) - set(state.active)
         state.active.extend(i for i in sorted(reactivated) if state.hmax[i] > 0)
+        # Keep recover-queue targets in the active pool after resync.
+        recover = getattr(state, "recover_targets", set()) - set(state.active)
+        state.active.extend(i for i in sorted(recover) if state.hmax[i] > 0)
         self._pace(now)
         night = state.current_night(now)
         if night is None:
@@ -80,22 +104,77 @@ class Planner(JointSearch):
                     if nxt else {"action": "finish", "reason": "no observing night left"})
         night_index, night_start, night_end = night
         self.advisor.update(state, payload, night_index, self.clock.wall_remaining(), self._last_forecast_notices)
+        # Framework: Copilot menu → Pilot pick → knobs (JointSearch reads knobs only).
+        decision = pilot_mod.decide(
+            state,
+            now=now,
+            night_index=night_index,
+            hours=hours,
+            request_views=self._request_views_now,
+            last_result=result,
+        )
+        apply_to_state(state, decision)
+        # Re-hide any requests Pilot just abandoned this step.
+        abandoned = getattr(state, "abandoned_request_ids", set()) or set()
+        if abandoned:
+            self._request_views_now = [
+                v for v in self._request_views_now if str(v.get("id")) not in abandoned
+            ]
+            self._request_thresholds_now = self._request_thresholds(self._active_requests_now)
+            self._request_bonus_now = self._request_bonuses(self._active_requests_now, now)
+        self.log(
+            f"pilot: pick={decision.pilot_short or '-'} mode={decision.mode} "
+            f"protocol={','.join(decision.protocols) or '-'} "
+            f"long={decision.pilot_long or '-'} mid={decision.pilot_mid or '-'} "
+            f"({decision.reason})"
+        )
+        self.log(f"copilot: {decision.copilot_reason or decision.pilot_short or '-'}")
+        self.log(f"duty: mode={decision.mode} L{decision.level} "
+                 f"protocols={','.join(decision.protocols) or '-'} ({decision.reason})")
+        self.trace.write({
+            "event": "duty_mode",
+            "version": "v3-framework",
+            "mode": decision.mode,
+            "level": decision.level,
+            "protocols": list(decision.protocols),
+            "reason": decision.reason,
+            "pilot_long": decision.pilot_long,
+            "pilot_mid": decision.pilot_mid,
+            "pilot_short": decision.pilot_short,
+            "pilot_pick": getattr(state, "pilot_chosen_short", decision.pilot_short),
+            "copilot": decision.copilot_reason,
+        })
         if (night_end - now).total_seconds() < state.min_exposure:
             nxt = state.next_night_start(now)
             return ({"action": "wait", "until_utc": format_utc(nxt), "reason": "night ending"}
                     if nxt else {"action": "finish", "reason": "survey over"})
         if state.site_closed():
+            # Sole legal long idle: whole-sky rain/storm (P-Q backup B2).
             return {"action": "wait", "duration_seconds": self._to_next_slot(now, night_start),
                     "reason": "whole-sky rain/storm notice"}
         report = self._maybe_report(hours, payload)
         if report:
             return report
         action = self.plan(now, night_end, night_index, hours)
+        if action is None and state.duty_forbid_idle_wait:
+            # P-Q / P-RQ backup: try short BACKUP before idling a slot.
+            saved_cap = state.duty_max_exposure_cap
+            state.duty_max_exposure_cap = min(state.duty_max_exposure_cap or 300, 300)
+            prev_force = state.force_program
+            state.force_program = prev_force or "BACKUP"
+            action = self.plan(now, night_end, night_index, hours)
+            state.duty_max_exposure_cap = saved_cap
+            state.force_program = prev_force
+            if action is not None:
+                self.log("duty: short BACKUP fill avoided idle wait")
         if action is None:
+            state.idle_wait_streak += 1
             return {"action": "wait", "duration_seconds": self._to_next_slot(now, night_start),
                     "reason": "nothing useful is up"}
+        state.idle_wait_streak = 0
         self.observe_count += 1
-        action["reason"] = f"{len(action['assignments'])} fibres, program {action['program']}"
+        action["reason"] = (f"{len(action['assignments'])} fibres, program {action['program']}, "
+                            f"mode {state.duty_mode}")
         return action
 
     def note_action(self, action):
@@ -103,6 +182,8 @@ class Planner(JointSearch):
         if action.get("action") != "observe":
             self.state.pending.clear()
             self.state.pending_action_index = None
+        else:
+            self.state.idle_wait_streak = 0
 
     def on_finish(self, payload):
         self.trace.write({"event": "finish", **payload,

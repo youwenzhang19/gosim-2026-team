@@ -122,6 +122,8 @@ class LLMClient:
         """One planning question, answered as exactly one JSON object, or None so the
         caller's rule-based answer takes over for this step. `wall_left_seconds` is the
         real time left before the card's cap (`wallclock.wall_remaining_seconds`)."""
+        if not self.api_key:
+            return None
         deadline = time.monotonic() + min(QUESTION_DEADLINE_SECONDS, wall_left_seconds - WALL_RESERVE_SECONDS)
         for attempt in range(1, self.max_attempts + 1):
             time_left = deadline - time.monotonic()
