@@ -1,10 +1,12 @@
 {
-  "version": "v9.1-calibration",
-  "date": "2026-10-07",
-  "baseline": "v9-probe.zip",
+  "version": "v10-required-sprint",
+  "date": "2026-10-08",
+  "baseline": "8692a36 must-observe",
   "baseline_sha256": "87bcc90aa34b527f1f386a7b3a150a8105e07fb0d2c8d9d69a388d4f3f78fb94",
   "changed_runtime_files": [
-    "planner.py"
+    "planner.py",
+    "tests/test_required_sprint.py",
+    "LANDING.md"
   ],
   "unchanged": [
     "agent.py",
@@ -15,8 +17,8 @@
     "FAULT_REPORTING_TODO.md",
     "planner.py::clean_e"
   ],
-  "unit_tests_passed": 27,
-  "planner_sha256": "564979e8ca009c0ebcc2ed26fbfe6796ca639ce8f655c236b7b30e32545efbd2",
+  "unit_tests_passed": 32,
+  "planner_sha256": "c5aec3f58f5e3e647dfef5349d474eed73577869aeb52f6443f4606f4bc0836f",
   "validation_limitations": "Public local direct-engine path, fixed level 2, rules-only; not hidden-card or fair-clock validation. L1 regression is disclosed.",
   "files": {
     "adaptive_forecast.py": "bdf94065800b1de0b64b45fc76599f698413e563be0228192a1b594ffb7ad3a9",
@@ -28,7 +30,7 @@
     "llm_client.py": "0222deb1db8ca80fc750dddf939cc9f5f3204995df84e3ad433fce2a8cebb677",
     "observer.project.json": "fa16204badd2e3f93ffd069629b3360560c3d68b761895a31ec798670f83f6ba",
     "operations.py": "66357fdf81457a41a3a7c1125fe1ed0ae9f7d14ae7f5201016d436ae06bc669b",
-    "planner.py": "564979e8ca009c0ebcc2ed26fbfe6796ca639ce8f655c236b7b30e32545efbd2",
+    "planner.py": "c5aec3f58f5e3e647dfef5349d474eed73577869aeb52f6443f4606f4bc0836f",
     "policy_adapter.py": "cad30bd09fbf279515fdc57404d5faf51e146a0b4abbd6bf4b6b1bd09db206f6",
     "README.md": "2efd309ef2ee984808cf8256ad2d2ce1b95c3c72b2410958b173e3de15a4adac",
     "request_bundle.py": "26a5ef650b0349720236085a75598be183e19950cdaa5a39040b5d2d22430ff9",
@@ -42,6 +44,8 @@
     "validation/baseline-v9-mixed-eight-nights.json": "2eabaf0a04768bf257f48eb6a74827a7481d3944900e783f71405675cbceeda8",
     "validation/L1.json": "e983348e740a3d903f2e7ebbc22b71968f51a777881108cb1d14df78a680b2cd",
     "validation/mixed-eight-nights.json": "0c61872fd6e17a93a1f0a769ca32c14e563ffaadecc6b879d3143218628efced",
-    "validation/unit-tests.json": "78b283447d83fa9ecd67d8a4d03f2a32a60a51518766e95ce4a445ebc84a32e3"
+    "validation/unit-tests.json": "78b283447d83fa9ecd67d8a4d03f2a32a60a51518766e95ce4a445ebc84a32e3",
+    "LANDING.md": "436e1703bb618256180bb74abb8334f135d949694c3d117938b5d684755115ef",
+    "tests/test_required_sprint.py": "3c9b932002ae4a2abf2b237bb149f853d846970386907a0c1df5426a03fe7991"
   }
 }

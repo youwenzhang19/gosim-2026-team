@@ -57,9 +57,19 @@ LAMBDA_EMA = _env("LAMBDA_EMA", 0.03)
 SCARCITY_REF = _env("SCARCITY_REF", 0.86)     # tuning constant: scarcity at which time is priced fully
 SCARCITY_POWER = _env("SCARCITY_POWER", 1.0)  # time price x min(1, scarcity / SCARCITY_REF) ** power
 TYPICAL_Q = 0.6
-N_ANCHORS = _env("N_ANCHORS", 12)             # targets tried as field centres per decision (full speed)
+N_ANCHORS = _env("N_ANCHORS", 12)             # legacy default; full-speed count is dynamic via backlog
 N_DENSE = _env("N_DENSE", 20)                  # plus centres in the densest patches of remaining science
 DENSE_BIN_DEG = _env("DENSE_BIN_DEG", 2.5)
+# Dynamic anchors: scale search throughput with unfinished REQUIRED (a1~1500 / b1~2500).
+ANCHOR_BASE = _env("ANCHOR_BASE", 8)
+ANCHOR_PER_REQUIRED = _env("ANCHOR_PER_REQUIRED", 125)  # pending_required // this added to base
+ANCHOR_MIN = _env("ANCHOR_MIN", 6)
+ANCHOR_MAX = _env("ANCHOR_MAX", 28)
+# Good-window REQUIRED sprint: high scale belief → push required, suppress pure science.
+REQUIRED_SPRINT_SCALE = _env("REQUIRED_SPRINT_SCALE", 0.5)
+REQUIRED_SPRINT_SCIENCE = _env("REQUIRED_SPRINT_SCIENCE", 0.12)  # science gain x this in sprint
+REQUIRED_SPRINT_BONUS = _env("REQUIRED_SPRINT_BONUS", 2.5)      # required bonus x this in sprint
+REQUIRED_SPRINT_EXIT = _env("REQUIRED_SPRINT_EXIT", 0.35)       # leave sprint if scale falls below this
 REFINE = _env("REFINE", 0.1)                 # local pointing search step (deg); 0 = off
 REFINE_ROUNDS = _env("REFINE_ROUNDS", 4)
 REFINE_FIXED_T = _env("REFINE_FIXED_T", 1)
@@ -143,6 +153,27 @@ def _fibers_to_search(grid: FiberGrid, level: int):
 
 def _per_fiber_time_price(rate: float, duration: float, fiber_count: int) -> float:
     return rate * duration / max(1, fiber_count)
+
+
+def _dynamic_n_anchors(pending_required: int, level: int) -> int:
+    """Full-speed anchor count grows with unfinished REQUIRED backlog; slow levels stay lean."""
+    if level >= 3:
+        return 1
+    if level == 2:
+        return 1
+    if level == 1:
+        return 3
+    extra = pending_required // max(1, ANCHOR_PER_REQUIRED)
+    return max(ANCHOR_MIN, min(ANCHOR_MAX, ANCHOR_BASE + extra))
+
+
+def _dynamic_calibration_anchors(pending_required: int, level: int) -> int:
+    """Calibration fallback pointings also track backlog (do not hard-fix at 8)."""
+    base = CALIBRATION_ANCHORS[min(level, 4)]
+    if level >= 2:
+        return base
+    extra = pending_required // max(1, ANCHOR_PER_REQUIRED * 2)
+    return max(base, min(ANCHOR_MAX, base + extra))
 
 
 def _all_or_nothing_request_reward(requests: list, predicted_factors: dict[int, float], finishes_at) -> float:
@@ -286,6 +317,7 @@ class Planner:
         self.planned = [False] * len(rows)
         self.plan_night = -1
         self._probe_night = -1                 # last night_index that got a nightly scale probe
+        self._sprint_latched = False           # stay in required sprint until backlog clears / scale collapses
 
     # --- precomputation --------------------------------------------------------------------------
 
@@ -350,7 +382,8 @@ class Planner:
             for low, high in spans:
                 for k in range(bisect.bisect_left(ras, low), bisect.bisect_right(ras, high)):
                     found.append(band[k][1])
-        return found
+        # Stable unique order: RA-band walk can revisit the same index at RA wrap.
+        return sorted(set(found))
 
     def _build_windows(self) -> None:
         """First and last night on which each target has at least 20 minutes above the limit."""
@@ -464,6 +497,7 @@ class Planner:
         self.pending_duration = 0
         self.pending_night = -1
         self.pending_cmd = None
+        self._sprint_latched = False
         self.log(f"state_resync: {len(best)} targets keep a score; learning and pending state rebuilt")
 
     def site_closed(self) -> bool:
@@ -490,7 +524,10 @@ class Planner:
         exp_cens_ratios = []
         scale_intervals = []
         directional_count = 0
-        for target_id, prediction in self.pending.items():
+        for target_id, prediction in sorted(
+            self.pending.items(),
+            key=lambda item: (item[1].get("fiber", -1), item[0]),
+        ):
             i = self.index_of[target_id]
             self.vdirty.add(i)
             score = hits.get(target_id)
@@ -716,6 +753,7 @@ class Planner:
         self._last_observe_hour = -math.inf      # last hours with a completed observation (for wait re-probe)
         self.scale = 1.0
         self.prior_scale = 1.0
+        self._sprint_latched = False
 
     # --- planning --------------------------------------------------------------------------------
 
@@ -731,12 +769,32 @@ class Planner:
                 return start
         return None
 
+    def pending_required_count(self) -> int:
+        """Unfinished REQUIRED targets that can still rise above the altitude limit."""
+        return sum(
+            1 for i in range(len(self.ids))
+            if self.required[i] and self.factor[i] < self.required_threshold and self.hmax[i] > 0.0
+        )
+
+    def required_sprint_active(self) -> bool:
+        """Good-window sprint: high scale belief and REQUIRED backlog still open."""
+        if self.site_closed():
+            return False
+        pending = self.pending_required_count()
+        if pending <= 0:
+            return False
+        # Enter at high belief; stay until backlog clears or scale collapses.
+        if self.scale >= REQUIRED_SPRINT_SCALE:
+            return True
+        return self.scale >= REQUIRED_SPRINT_EXIT and getattr(self, "_sprint_latched", False)
+
     def _direction_factor(self, alt: float, az: float) -> float:
         factor = 1.0
-        for direction in self.terrain:
+        # Sorted set walks: PYTHONHASHSEED must not reshuffle blocking/discount order.
+        for direction in sorted(self.terrain):
             if direction in DIRECTION_AZ and alt < 50.0 and _az_distance(az, DIRECTION_AZ[direction]) <= 60.0:
                 return 0.0
-        for kind, direction in self.notices:
+        for kind, direction in sorted(self.notices):
             if direction not in DIRECTION_AZ:
                 continue
             near = _az_distance(az, DIRECTION_AZ[direction]) <= 67.5
@@ -745,7 +803,7 @@ class Planner:
             # Only rain/storm soft-discount sectors; haze/overcast stay open for planning.
             if kind in CLOSED_KINDS and near and alt < 75.0:
                 factor = min(factor, DIRECTION_WEATHER_DISCOUNT)
-        for direction in self.extra_avoid | self.log_avoid:
+        for direction in sorted(self.extra_avoid | self.log_avoid):
             if direction in DIRECTION_AZ and _az_distance(az, DIRECTION_AZ[direction]) <= 67.5 and alt < 70.0:
                 factor = min(factor, DIRECTION_WEATHER_DISCOUNT)
         for blocked_az, blocked_alt in self.blocked[-40:]:
@@ -802,11 +860,12 @@ class Planner:
         absolute_science = 0.0
         request_factors = {}
         top_mult = max(self.multipliers.values())
+        sprint = self.required_sprint_active()
 
         def shaped(value):
             return top_mult * (value / top_mult) ** KAPPA if KAPPA != 1.0 else value
 
-        for fiber, target_id in assignments.items():
+        for fiber, target_id in sorted(assignments.items()):
             i = self.index_of[target_id]
             alt, az = radec_to_altaz(self.ra[i], self.dec[i], current_lsts[0], self.lat)
             mid_alt, mid_az = radec_to_altaz(self.ra[i], self.dec[i], current_lsts[1], self.lat)
@@ -844,6 +903,9 @@ class Planner:
             if (planned_factor < PARTIAL_DONE and self.planned[i]
                     and self.last_night[i] - night_index >= PARTIAL_NIGHTS):
                 planning_science *= PARTIAL_DISCOUNT
+            # Good window: opportunity cost is high — leave non-required science for poor windows.
+            if sprint and not (self.required[i] and current_factor < self.required_threshold):
+                planning_science *= REQUIRED_SPRINT_SCIENCE
             direction = self._direction_factor(mid_alt, mid_az)
             nights_left = max(1, self.last_night[i] - night_index + 1)
             priority = (1.0 + URGENCY / nights_left) * (0.6 ** self.misses[i]) * (0.8 ** self.attempts[i]) * direction
@@ -857,6 +919,8 @@ class Planner:
                 bonus = REQUIRED_BONUS * min(
                     1.0, max(0.0, (raw - REQ_P_LO) / (REQ_P_HI - REQ_P_LO))
                 )
+                if sprint:
+                    bonus *= REQUIRED_SPRINT_BONUS
                 target_best = self.best_future_model(i, night_index) if REQ_CALENDAR else self.ideal_model[i]
                 if REQ_TIMING and model < REQ_TIMING * target_best and self.last_night[i] - night_index >= REQ_TIMING_NIGHTS:
                     bonus *= REQ_TIMING_DISCOUNT
@@ -965,8 +1029,10 @@ class Planner:
         moon = Moon(now + timedelta(seconds=600), lst, self.lat, self.lunar_model)
         clean = not self.all_sky_notice()
         pending = {}
-        for fiber, target_id in selected["assignments"].items():
-            fiber = int(fiber)
+        for fiber, target_id in sorted(
+            ((int(fiber), target_id) for fiber, target_id in selected["assignments"].items()),
+            key=lambda item: item[0],
+        ):
             i = self.index_of[target_id]
             alt, az = radec_to_altaz(self.ra[i], self.dec[i], lst, self.lat)
             alt_later, _ = radec_to_altaz(self.ra[i], self.dec[i], lst_later, self.lat)
@@ -1074,10 +1140,13 @@ class Planner:
         bins: dict = {}
         bin_best: dict = {}
         sd, cd = self.sin_dec, self.cos_dec
+        pending_required = self.pending_required_count()
+        sprint = self.required_sprint_active()
+        self._sprint_latched = sprint
         if self.vcache is None:
             self.vcache = [self.value(i) for i in range(len(self.ids))]
         else:
-            for i in self.vdirty:
+            for i in sorted(self.vdirty):
                 self.vcache[i] = self.value(i)
         self.vdirty = set()
         vc = self.vcache
@@ -1100,13 +1169,27 @@ class Planner:
             visible[i] = None
             # proxy priority: planning value x a rough airmass factor x urgency (no Moon, no direction)
             nights_left = self.last_night[i] - night_index + 1
-            proxy.append((v * (sin_alt ** 0.6) * (1.0 + URGENCY / (nights_left if nights_left > 1 else 1)), i))
+            proxy_score = v * (sin_alt ** 0.6) * (1.0 + URGENCY / (nights_left if nights_left > 1 else 1))
+            # Sprint: pull unfinished REQUIRED into the pool ahead of ordinary science.
+            if sprint and self.required[i] and self.factor[i] < self.required_threshold:
+                proxy_score *= REQUIRED_SPRINT_BONUS
+            elif sprint:
+                proxy_score *= REQUIRED_SPRINT_SCIENCE
+            proxy.append((proxy_score, i))
             if N_DENSE:
                 # plain science still to gain here, binned on the sky at roughly one field size
+                # In sprint, density anchors track unfinished REQUIRED patches, not leftover science.
                 key = (int((self.ra[i] * cd[i]) // DENSE_BIN_DEG), int((self.dec[i] + 90.0) // DENSE_BIN_DEG))
-                dense_val = self.weight[i] * max(0.0, 1.0 - self.cur[i] / 1.2) * (sin_alt ** 0.6)
+                if sprint and self.required[i] and self.factor[i] < self.required_threshold:
+                    dense_val = REQUIRED_BONUS * (sin_alt ** 0.6)
+                elif sprint:
+                    dense_val = self.weight[i] * max(0.0, 1.0 - self.cur[i] / 1.2) * (sin_alt ** 0.6) * REQUIRED_SPRINT_SCIENCE
+                else:
+                    dense_val = self.weight[i] * max(0.0, 1.0 - self.cur[i] / 1.2) * (sin_alt ** 0.6)
                 bins[key] = bins.get(key, 0.0) + dense_val
-                if dense_val > bin_best.get(key, (0.0, -1))[0]:
+                prev = bin_best.get(key, (0.0, -1))
+                # Deterministic tie-break: higher dense_val, then lower target index.
+                if dense_val > prev[0] or (dense_val == prev[0] and (prev[1] < 0 or i < prev[1])):
                     bin_best[key] = (dense_val, i)
         self.active = still_active
         if not visible and not probe:
@@ -1173,11 +1256,16 @@ class Planner:
             g = self.weight[i] * max(0.0, shaped(reach * m) - shaped(self.cur[i]))
             if reach < PARTIAL_DONE and self.planned[i] and self.last_night[i] - night_index >= PARTIAL_NIGHTS:
                 g *= PARTIAL_DISCOUNT   # it will be completed later: this partial exposure would be wasted
+            unfinished_required = self.required[i] and self.factor[i] < self.required_threshold
+            if sprint and not unfinished_required:
+                g *= REQUIRED_SPRINT_SCIENCE
             bonus = 0.0
-            if self.required[i] and self.factor[i] < self.required_threshold:
+            if unfinished_required:
                 raw = (self.flux[i] * T * model * self.scale / self.f0t0
                        / max(1e-6, self.required_threshold) * self.req_calib.get(i, 1.0))
                 bonus = REQUIRED_BONUS * min(1.0, max(0.0, (raw - REQ_P_LO) / (REQ_P_HI - REQ_P_LO)))
+                if sprint:
+                    bonus *= REQUIRED_SPRINT_BONUS
                 target_best = self.best_future_model(i, night_index) if REQ_CALENDAR else self.ideal_model[i]
                 if REQ_TIMING and model < REQ_TIMING * target_best and self.last_night[i] - night_index >= REQ_TIMING_NIGHTS:
                     bonus *= REQ_TIMING_DISCOUNT   # a better moment for this target will come
@@ -1202,10 +1290,15 @@ class Planner:
             g = self.weight[i] * max(0.0, shaped(reach * self.multipliers[self._band(model * band_scale)]) - shaped(self.cur[i]))
             if reach < PARTIAL_DONE and self.planned[i] and self.last_night[i] - night_index >= PARTIAL_NIGHTS:
                 g *= PARTIAL_DISCOUNT
+            unfinished_required = self.required[i] and self.factor[i] < self.required_threshold
+            if sprint and not unfinished_required:
+                g *= REQUIRED_SPRINT_SCIENCE
             bonus = 0.0
-            if self.required[i] and self.factor[i] < self.required_threshold:
+            if unfinished_required:
                 raw = self.flux[i] * T * model * self.scale / self.f0t0 / max(1e-6, self.required_threshold)
                 bonus = REQUIRED_BONUS * min(1.0, max(0.0, (raw - REQ_P_LO) / (REQ_P_HI - REQ_P_LO)))
+                if sprint:
+                    bonus *= REQUIRED_SPRINT_BONUS
             if i in self.request_anchor_bonus:
                 threshold = self.request_threshold.get(i, 0.5)
                 raw = self.flux[i] * T * model * self.scale / self.f0t0 / max(1e-6, threshold)
@@ -1292,8 +1385,12 @@ class Planner:
                 return None
         if not ranked and not probe:
             return None
-        ranked.sort(reverse=True)
-        n_anchors = (N_ANCHORS, 3, 1, 1)[min(level, 3)]
+        # Explicit secondary key (target index) so equal scores never depend on hash order.
+        ranked.sort(key=lambda item: (item[0], -item[1]), reverse=True)
+        n_anchors = _dynamic_n_anchors(pending_required, level)
+        if level == 0 and not sprint:
+            # Keep legacy N_ANCHORS as a floor outside sprint so ordinary science search does not shrink.
+            n_anchors = max(n_anchors, N_ANCHORS)
         anchors = [i for _, i in ranked[:n_anchors]]
         if N_DENSE and level <= 1 and bins:
             # also try the densest patches of remaining science: fields with no single outstanding target
@@ -1301,6 +1398,9 @@ class Planner:
                 j = bin_best[key][1]
                 if j not in anchors and exact(j) is not None:
                     anchors.append(j)
+        if sprint:
+            self.log(f"plan: required-sprint pending={pending_required} "
+                     f"anchors={n_anchors} scale={self.scale:.3f}")
         fibers = _fibers_to_search(self.grid, level)
         dense_fibers = _central_fiber_ids(self.grid, min(4, self.grid.n))
         best = None
@@ -1374,7 +1474,10 @@ class Planner:
                 "search_utility": search_utility,
             }
             if len(raw_candidates) > 40:
-                weakest = min(raw_candidates, key=lambda item: raw_candidates[item]["search_utility"])
+                weakest = min(
+                    raw_candidates,
+                    key=lambda item: (raw_candidates[item]["search_utility"], item),
+                )
                 del raw_candidates[weakest]
 
         def evaluate(c_alt, c_az, near, durations, reserve_calibration=False):
@@ -1393,21 +1496,30 @@ class Planner:
             found = None
             for T in durations:
                 choices_by_fiber = {}
-                for fib, js in cells.items():
+                for fib, js in sorted(cells.items()):
                     # Gain-based for both science and probe (Codex ablation:
                     # per-fiber (clean, flux) ranking regressed L1/mixed;
                     # gain-based + probe bypass is the validated combination).
                     # Probe bypass below allows execution when gains are ~0.
-                    choices = [(gain(j, T), j) for j in js if full(j)[4] >= T]
+                    # Sort js so equal-gain ties do not depend on neighbour walk order.
+                    choices = [(gain(j, T), j) for j in sorted(js) if full(j)[4] >= T]
                     if choices:
                         choices_by_fiber[fib] = choices
                 pick = {}
-                for fib, choices in choices_by_fiber.items():
+                for fib, choices in sorted(choices_by_fiber.items()):
                     science_choices = ([(g, j) for g, j in choices if j in visible]
                                        if reserve_calibration else choices)
                     if not science_choices:
                         continue
-                    g, j = max(science_choices)
+                    # Tie-break: higher gain, then unfinished REQUIRED, then lower index.
+                    g, j = max(
+                        science_choices,
+                        key=lambda item: (
+                            item[0],
+                            1 if (self.required[item[1]] and self.factor[item[1]] < self.required_threshold) else 0,
+                            -item[1],
+                        ),
+                    )
                     # Probes measure the sky; they must not be vetoed by the
                     # science-gain filter (at scale~0 no fiber has g > 0).
                     if probe or g > 0:
@@ -1415,12 +1527,12 @@ class Planner:
                 reserved = 0
                 if reserve_calibration and not usable(pick, T):
                     replacements = []
-                    for fib, choices in choices_by_fiber.items():
+                    for fib, choices in sorted(choices_by_fiber.items()):
                         options = [(g, calibration_signal(j, T), j) for g, j in choices
                                    if calibration_signal(j, T) > 0.0]
                         if not options:
                             continue
-                        g, signal, j = max(options)
+                        g, signal, j = max(options, key=lambda item: (item[0], item[1], -item[2]))
                         loss = gain(pick[fib], T) - g if fib in pick else -g
                         replacements.append((loss, -signal, fib, j))
                     # Only these few fibres may deviate from gain ranking.
@@ -1436,8 +1548,8 @@ class Planner:
                 if candidate_total / T > best_rate[0]:
                     best_rate[0] = candidate_total / T
                 net = candidate_total - lam * T
-                if found is None or net > found[0]:
-                    found = (net, T, pick, candidate_total)
+                if found is None or net > found[0] + 1e-12:
+                    found = (net, T, dict(sorted(pick.items())), candidate_total)
                     calibration_swaps[(c_alt, c_az, T)] = reserved
             return found
 
@@ -1481,7 +1593,7 @@ class Planner:
             diag = self.last_calibration_search
             diag["triggered"] = True
             budget = CALIBRATION_POOL[min(level, 4)]
-            anchor_limit = CALIBRATION_ANCHORS[min(level, 4)]
+            anchor_limit = _dynamic_calibration_anchors(pending_required, level)
             T = probe_T
             cal_c2 = math.cos(math.radians(lst + T * SIDEREAL_DEG_PER_SECOND))
             cal_s2 = math.sin(math.radians(lst + T * SIDEREAL_DEG_PER_SECOND))
