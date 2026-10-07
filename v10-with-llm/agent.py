@@ -1,34 +1,19 @@
 #!/usr/bin/env python3
-"""GOSIM v8 Pro Adaptive. Standard library only, participant-agent-protocol-v4.
+"""GOSIM v10 with LLM (must-observe + required sprint). Standard library only.
 
-Derived from GOSIM 2026 Agentic Observer Hackathon Python Pro, commit
-ab27e5ef32f0a834b054d855cf9706b44502204b:
-https://github.com/gosimfoundation/hackathon-survey26
-License: CC BY-NC 4.0, https://creativecommons.org/licenses/by-nc/4.0/
-Local modifications add configuration, operations, reversible feedback and
-audited Agent forecast/proposal adapters.
+Protocol: participant-agent-protocol-v4. Derived from GOSIM 2026 Python Pro
+(ab27e5ef…, CC BY-NC 4.0) plus v9/v10 planner work (required sprint, dynamic
+anchors, determinism, must-observe). LLM wiring matches v4's official
+OpenAI-compatible env injection (OPENAI_BASE_URL / OPENAI_MODEL /
+OPENAI_API_KEY or KIMI_API_KEY) — never hardcode keys.
 
 One JSON object per line on stdin, one per line on stdout, logs on stderr.
 
-What it does (details in README.md and planner.py):
-
-1. Planning: every decision picks pointing, fibre assignment, duration and program together, maximising
-   expected gain minus a price for telescope time (gain - lambda * T). Required targets and observation
-   requests enter as probability-weighted bonuses.
-2. Program: the band level is fitted to saturated hits, which show the program multiplier exactly.
-3. Instrument faults: E = (quality level) / (band level). Weather moves both, a fault only the first;
-   when E stays low the agent reports. Free false reports are spent early; each low episode is probed
-   once; paid probes need two low nights.
-4. Pace: the search level adapts to the measured cost per decision so a 4-month card fits the wall clock.
-5. Model (advisor.py): at every night start a night plan (forecast + bulletin -> bad night, sectors to avoid)
-   and a fault review (own quality table -> how likely a fault is, which gates heuristic paid reports). Before
-   those heuristic paid reports the model may confirm or veto; validated typed hardware reports from
-   operations.py bypass that optional confirmation. OperationsAdvisor reads free-text staff notes attached to
-   observation requests (closures, sectors to avoid, persistent instrument faults, calibration windows). Calls
-   run in the background; without an API key the numerical planner continues in rules mode.
-6. v8 forecasts future public weather notices and selected-exposure science gain.
-   Matched public feedback updates bounded prediction trust. Typed Agent program
-   and duration proposals are re-evaluated and shielded by the Pro utility model.
+Planner (planner.py) stays deterministic and LLM-free: required sprint, dynamic
+anchors, must-observe short probes, sorted tie-breaks. Model stages live in
+advisor.py / operations.py / llm_client.py and only overlay advice when a key
+is present and OBSERVER_MODEL_DISABLED is not set. Any model miss or timeout
+leaves the rule default for that step; the season never waits empty on LLM.
 """
 from __future__ import annotations
 
@@ -773,15 +758,21 @@ class ObserverAgent:
 
 
 def main() -> int:
+    # Official platform injects OPENAI_API_KEY / KIMI_API_KEY (and optional
+    # OPENAI_BASE_URL / OPENAI_MODEL). Local .env fills missing names only;
+    # keys are never hardcoded and must not be committed.
     load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
     rules_only = model_disabled()
     if rules_only:
         log("pro: OBSERVER_MODEL_DISABLED=1, running rules only (no model calls)")
     elif not api_key():
-        # The numerical Pro planner remains available when a model is
-        # unavailable.  Keep the run auditable through the rules-only flag.
-        log("v8: no API key; using numerical Pro planner and public-fact adapters")
+        # Unlike v4 (hard require_api_key exit), keep the numerical Pro planner
+        # available so a missing key never idles out a whole season.
+        log("v10: no OPENAI_API_KEY/KIMI_API_KEY; numerical planner + rules only")
         rules_only = True
+    else:
+        log("v10: LLM enabled via OPENAI_*/KIMI_* env (night_plan/fault_review/"
+            "confirm_report/operations; failures fall back to rules)")
     agent = None
     for line in sys.stdin:
         if not line.strip():

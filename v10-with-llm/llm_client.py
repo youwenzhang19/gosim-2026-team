@@ -17,6 +17,12 @@ STAGES = ("night_plan", "fault_review", "operations", "confirm_report",
           "adaptive_forecast", "strategy_proposal")
 MAX_RECENT_CALLS = 64
 QUESTION_DEADLINE_SECONDS = 90.0
+# Sync ask_json (v4-compatible one-shot): keep each question short so a hang
+# never burns the card's wall clock; background submit() still uses the longer
+# QUESTION_DEADLINE_SECONDS / operations budgets above.
+ASK_JSON_DEADLINE_SECONDS = 18.0
+ASK_JSON_HTTP_TIMEOUT_SECONDS = 8.0
+ASK_JSON_WALL_RESERVE_SECONDS = 300.0
 OPERATIONS_TOTAL_TIMEOUT_SECONDS = 360.0
 OPERATIONS_HTTP_TIMEOUT_SECONDS = 240.0
 OPERATIONS_MAX_TOKENS = 12000
@@ -337,6 +343,92 @@ class LLMClient:
         max_tokens = OPERATIONS_MAX_TOKENS if stage == "operations" else DEFAULT_MAX_TOKENS
         reply, _error = self._submit(tag, system, user, timeout, max_tokens)
         return reply
+
+    def ask_json(self, system_prompt: str, user_payload: dict, wall_left_seconds: float):
+        """v4-compatible synchronous one-shot JSON question.
+
+        Returns a dict on success, or None so the caller keeps its rule-based
+        answer for this step only. Never raises into the planner. Uses the same
+        OPENAI_*/KIMI_* env wiring as background submit(); keys are never
+        hardcoded. Bounded by ASK_JSON_DEADLINE_SECONDS and a wall reserve so a
+        dead endpoint cannot idle out a whole season.
+        """
+        stage = "confirm_report"
+        if not self.enabled:
+            self._reject("no_key", stage)
+            try:
+                self.log("llm: ask_json skipped (no API key); rules decide")
+            except Exception:
+                pass
+            return None
+        wall_left = _bounded_float(wall_left_seconds, 0.0, 0.0, 86400.0)
+        budget = wall_left - ASK_JSON_WALL_RESERVE_SECONDS
+        if budget < 2.0:
+            self._reject("deadline_before_attempt", stage)
+            try:
+                self.log("llm: ask_json no wall budget; rules decide")
+            except Exception:
+                pass
+            return None
+        deadline = time.monotonic() + min(ASK_JSON_DEADLINE_SECONDS, budget)
+        last_error = "no_answer"
+        for attempt in range(self.max_retries):
+            remaining = deadline - time.monotonic()
+            if remaining < 2.0:
+                last_error = "timeout"
+                break
+            claim_error = self._claim_attempt(stage)
+            if claim_error:
+                last_error = claim_error
+                break
+            try:
+                answer = self._request(
+                    system_prompt, user_payload,
+                    min(ASK_JSON_HTTP_TIMEOUT_SECONDS, remaining),
+                    DEFAULT_MAX_TOKENS, include_finish_reason=False,
+                )
+            except urllib.error.HTTPError as exc:
+                status = int(exc.code)
+                try:
+                    exc.close()
+                except Exception:
+                    pass
+                retryable = status == 429 or status >= 500 or status == 408
+                last_error = f"http_{status}"
+                if not retryable or attempt + 1 >= self.max_retries:
+                    break
+            except (TimeoutError, urllib.error.URLError, OSError, _InvalidResponse,
+                    ValueError, KeyError, IndexError, TypeError) as exc:
+                last_error = type(exc).__name__
+                if attempt + 1 >= self.max_retries:
+                    break
+            else:
+                if isinstance(answer, dict):
+                    with self._lock:
+                        self.ok += 1
+                        self._by_stage[stage]["success"] += 1
+                    return answer
+                last_error = "invalid_response"
+                break
+            delay = min(MAX_BACKOFF_SECONDS, 0.25 * (2 ** attempt))
+            if time.monotonic() + delay >= deadline - 1.0:
+                last_error = "timeout"
+                break
+            with self._lock:
+                self.retries += 1
+                self._by_stage[stage]["retries"] += 1
+            time.sleep(delay)
+        with self._lock:
+            self.failed += 1
+            self._by_stage[stage]["failure"] += 1
+            if last_error == "timeout":
+                self.timeouts += 1
+                self._by_stage[stage]["timeout"] += 1
+        try:
+            self.log(f"llm: ask_json failed ({last_error}); rules decide")
+        except Exception:
+            pass
+        return None
 
     def _claim_attempt(self, stage: str):
         with self._lock:

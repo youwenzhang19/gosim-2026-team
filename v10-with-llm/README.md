@@ -1,3 +1,25 @@
+# v10-with-llm — required sprint + must-observe + 官方 LLM
+
+在 tip `194d886`（v10-no-llm / required sprint）之上启用与本机 v4 同级的
+OpenAI 兼容 LLM（Kimi Coding 默认）。规划器仍无 LLM；模型失败或未注入 key
+时走规则，不会整季空等。详见 [LANDING.md](LANDING.md) 与
+`docs/v10-with-llm-landing.md`。**不代交官网。**
+
+## LLM 开关
+
+```bash
+# 开
+export OPENAI_API_KEY=…   # 或 KIMI_API_KEY；可选 OPENAI_BASE_URL / OPENAI_MODEL
+unset OBSERVER_MODEL_DISABLED
+
+# 关
+export OBSERVER_MODEL_DISABLED=1
+```
+
+本地可复制 `.env.example` → `.env`（真钥勿入库）。
+
+---
+
 # v9.1 — 按需校准补搜版
 
 本版基于用户提供的 v9-probe.zip，日期 2026-10-07。运行代码只修改 planner.py；原 ZIP 保留。
