@@ -1,0 +1,47 @@
+{
+  "version": "v9.1-calibration",
+  "date": "2026-10-07",
+  "baseline": "v9-probe.zip",
+  "baseline_sha256": "87bcc90aa34b527f1f386a7b3a150a8105e07fb0d2c8d9d69a388d4f3f78fb94",
+  "changed_runtime_files": [
+    "planner.py"
+  ],
+  "unchanged": [
+    "agent.py",
+    "operations.py",
+    "llm_client.py",
+    "scale_estimator.py",
+    "observer.project.json",
+    "FAULT_REPORTING_TODO.md",
+    "planner.py::clean_e"
+  ],
+  "unit_tests_passed": 27,
+  "planner_sha256": "564979e8ca009c0ebcc2ed26fbfe6796ca639ce8f655c236b7b30e32545efbd2",
+  "validation_limitations": "Public local direct-engine path, fixed level 2, rules-only; not hidden-card or fair-clock validation. L1 regression is disclosed.",
+  "files": {
+    "adaptive_forecast.py": "bdf94065800b1de0b64b45fc76599f698413e563be0228192a1b594ffb7ad3a9",
+    "advisor.py": "f0da13a4aa7bf169496e0b89dec87803b84e7c823946cb2e388ffb5d53563d4f",
+    "agent.py": "88e3974a83d8ff4c2262ef4ac68a143c90df3ce73ce895348f22408649af91af",
+    "calibration.py": "331c9081eab1f26100f392cbb5ff0e739fe4416bc27fcbc325bff44edeb56bc1",
+    "CHANGELOG_V9_1.md": "578d870504c80de7cf38d10b7cece42f09c538b54b2e1a4154542f8d6840c3e0",
+    "FAULT_REPORTING_TODO.md": "50cafe685f22b24b22b31166c64e3210279fb76690dab59755cc159e10c576cf",
+    "llm_client.py": "0222deb1db8ca80fc750dddf939cc9f5f3204995df84e3ad433fce2a8cebb677",
+    "observer.project.json": "fa16204badd2e3f93ffd069629b3360560c3d68b761895a31ec798670f83f6ba",
+    "operations.py": "66357fdf81457a41a3a7c1125fe1ed0ae9f7d14ae7f5201016d436ae06bc669b",
+    "planner.py": "564979e8ca009c0ebcc2ed26fbfe6796ca639ce8f655c236b7b30e32545efbd2",
+    "policy_adapter.py": "cad30bd09fbf279515fdc57404d5faf51e146a0b4abbd6bf4b6b1bd09db206f6",
+    "README.md": "2efd309ef2ee984808cf8256ad2d2ce1b95c3c72b2410958b173e3de15a4adac",
+    "request_bundle.py": "26a5ef650b0349720236085a75598be183e19950cdaa5a39040b5d2d22430ff9",
+    "scale_estimator.py": "74f5b55d28e00494956682be0e6330b0829d4d118f572a8131b57715afae2221",
+    "short_horizon.py": "58b0c5a0bec88d41b300fd1bfebc6850c517026e6c75e33af4fef7baeccdbb67",
+    "skymath.py": "23ac21dc241d05c9164c2f9df0a2a2fe3457330c118eee3aa8abe778b1f00291",
+    "tests/run_offline_comparison.py": "e6f1b1867f50099095d247696ac6e508311019873f2ab300b5f2f034f6808001",
+    "tests/test_planner_engine.py": "ab1588844d6390e8b6fb271550cf86638628672c7c84eb997695f2b7c5bdb1dc",
+    "tests/test_probe_search.py": "f80e5a319de159beb5532f40a84ee2cb1247f32689ebee4104ab081da410e123",
+    "validation/baseline-v9-L1.json": "1d542370d2efd4eee0a7330125dc78c0c867456b4b8cb8274496f2ba5f70b44e",
+    "validation/baseline-v9-mixed-eight-nights.json": "2eabaf0a04768bf257f48eb6a74827a7481d3944900e783f71405675cbceeda8",
+    "validation/L1.json": "e983348e740a3d903f2e7ebbc22b71968f51a777881108cb1d14df78a680b2cd",
+    "validation/mixed-eight-nights.json": "0c61872fd6e17a93a1f0a769ca32c14e563ffaadecc6b879d3143218628efced",
+    "validation/unit-tests.json": "78b283447d83fa9ecd67d8a4d03f2a32a60a51518766e95ce4a445ebc84a32e3"
+  }
+}

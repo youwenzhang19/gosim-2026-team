@@ -1,0 +1,65 @@
+{
+  "version": "v9-original",
+  "card": "C:\\Users\\HP\\Documents\\Harry\\gosim-2026-team-main\\training\\official-examples\\gosim-observer-examples\\local-cards\\L1",
+  "elapsed_seconds": 39.7029999999977,
+  "plan_cpu_seconds": 18.484375,
+  "termination": {
+    "reason": "survey_complete",
+    "detail": ""
+  },
+  "components": {
+    "sum_best_scores": 5270.227784,
+    "required_penalty": -100.0,
+    "uniformity_penalty": -0.843958,
+    "report_settlement": 100.0,
+    "observation_request_reward": 100.0
+  },
+  "counts": {
+    "decisions": 1517,
+    "observe_actions": 951,
+    "observations": 9900,
+    "targets_observed": 6879,
+    "required_missing": 2,
+    "invalidated_observations": 0,
+    "observation_requests_issued": 2,
+    "observation_requests_completed": 1
+  },
+  "score": 5369.383825999999,
+  "overall": {
+    "n": 950,
+    "mae": 0.03505194165544122,
+    "median_relative_error_positive": 0.06641332208066258,
+    "within_10pct_positive": 0.7985074626865671
+  },
+  "good_scale_ge_0_7": {
+    "n": 82,
+    "mae": 0.041227414894101824,
+    "median_relative_error_positive": 0.061765535332501065,
+    "within_10pct_positive": 0.9024390243902439
+  },
+  "bad_scale_lt_0_4": {
+    "n": 160,
+    "mae": 0.01806708000373912,
+    "median_relative_error_positive": 0.05829833020110331,
+    "within_10pct_positive": 0.8513513513513513
+  },
+  "probe_counts": {
+    "nightly": 32,
+    "adaptive": 314,
+    "wait": 0
+  },
+  "wait_hours_including_daytime": 517.1666666666666,
+  "calibration_searches": {
+    "count": 0,
+    "with_usable_target": 0,
+    "max_new_exact": 0,
+    "max_anchors": 0
+  },
+  "limitations": "Public direct-engine path, rules_only, fixed level 2, constant advertised clock. Not official fair-clock or hidden d1. Post-feedback effective-scale metric, not next-exposure prediction. Truth never enters agent inputs. Final exposure may not receive a subsequent callback.",
+  "planner_sha256": "2725800762cf681e276de7ff7175f70cf9d23d8559b5e38afd2f04b3fb86955b",
+  "engine_sha256": {
+    "v4_runner.py": "390cc6e7fa0a4ff31fa76fe4485511c026ee3355b3c4c203afea471e6a55af4d",
+    "v4_scorer.py": "46154188eb409fb8408845d0a40ea07c143e1bb1f297f7ee79ab1559ac24cd66",
+    "v4_workflow.py": "a50cd2d8f8ed8232aa7b764627db1cfc3acc532507a0e317684ed5adb436b73a"
+  }
+}
