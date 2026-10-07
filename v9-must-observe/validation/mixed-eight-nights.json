@@ -1,0 +1,65 @@
+{
+  "version": "v9_1-final",
+  "card": "C:\\Users\\HP\\Downloads\\scale-audit-20261007\\mixed-eight-nights",
+  "elapsed_seconds": 7.78099999999904,
+  "plan_cpu_seconds": 4.515625,
+  "termination": {
+    "reason": "survey_complete",
+    "detail": ""
+  },
+  "components": {
+    "sum_best_scores": 2181.338234,
+    "required_penalty": -2100.0,
+    "uniformity_penalty": -8.273891,
+    "report_settlement": 0.0,
+    "observation_request_reward": 0
+  },
+  "counts": {
+    "decisions": 459,
+    "observe_actions": 343,
+    "observations": 4180,
+    "targets_observed": 3470,
+    "required_missing": 42,
+    "invalidated_observations": 0,
+    "observation_requests_issued": 0,
+    "observation_requests_completed": 0
+  },
+  "score": 73.06434299999982,
+  "overall": {
+    "n": 342,
+    "mae": 0.030092924622438455,
+    "median_relative_error_positive": 0.029556860998951384,
+    "within_10pct_positive": 1.0
+  },
+  "good_scale_ge_0_7": {
+    "n": 178,
+    "mae": 0.052727123010360165,
+    "median_relative_error_positive": 0.09514140077688205,
+    "within_10pct_positive": 1.0
+  },
+  "bad_scale_lt_0_4": {
+    "n": 164,
+    "mae": 0.0055265385672551345,
+    "median_relative_error_positive": 0.02933273829587113,
+    "within_10pct_positive": 1.0
+  },
+  "probe_counts": {
+    "nightly": 8,
+    "adaptive": 82,
+    "wait": 0
+  },
+  "wait_hours_including_daytime": 113.0,
+  "calibration_searches": {
+    "count": 1,
+    "with_usable_target": 1,
+    "max_new_exact": 25,
+    "max_anchors": 0
+  },
+  "limitations": "Public direct-engine path, rules_only, fixed level 2, constant advertised clock. Not official fair-clock or hidden d1. Post-feedback effective-scale metric, not next-exposure prediction. Truth never enters agent inputs. Final exposure may not receive a subsequent callback.",
+  "planner_sha256": "564979e8ca009c0ebcc2ed26fbfe6796ca639ce8f655c236b7b30e32545efbd2",
+  "engine_sha256": {
+    "v4_runner.py": "390cc6e7fa0a4ff31fa76fe4485511c026ee3355b3c4c203afea471e6a55af4d",
+    "v4_scorer.py": "46154188eb409fb8408845d0a40ea07c143e1bb1f297f7ee79ab1559ac24cd66",
+    "v4_workflow.py": "a50cd2d8f8ed8232aa7b764627db1cfc3acc532507a0e317684ed5adb436b73a"
+  }
+}
